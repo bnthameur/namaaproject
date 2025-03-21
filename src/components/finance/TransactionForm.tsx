@@ -37,8 +37,8 @@ import { toast } from 'sonner';
 
 const formSchema = z.object({
   type: z.enum(['income', 'expense']),
-  amount: z.coerce.number().positive('Amount must be positive'),
-  description: z.string().min(3, 'Description must be at least 3 characters'),
+  amount: z.coerce.number().positive('يجب أن يكون المبلغ إيجابياً'),
+  description: z.string().min(3, 'يجب أن يكون الوصف 3 أحرف على الأقل'),
   category: z.string(),
   date: z.date(),
   notes: z.string().optional(),
@@ -60,8 +60,8 @@ const TransactionForm: React.FC = () => {
   });
 
   const onSubmit = (data: FormValues) => {
-    toast.success('Transaction added successfully', {
-      description: `${data.type === 'income' ? 'Income' : 'Expense'}: $${data.amount} for ${data.description}`,
+    toast.success('تمت إضافة المعاملة بنجاح', {
+      description: `${data.type === 'income' ? 'دخل' : 'مصروف'}: ${data.amount} د.ج لـ${data.description}`,
     });
     
     form.reset();
@@ -69,7 +69,7 @@ const TransactionForm: React.FC = () => {
 
   return (
     <BlurCard>
-      <h2 className="text-xl font-semibold mb-4">Add New Transaction</h2>
+      <h2 className="text-xl font-semibold mb-4">إضافة معاملة جديدة</h2>
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -78,16 +78,16 @@ const TransactionForm: React.FC = () => {
             name="type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Transaction Type</FormLabel>
+                <FormLabel>نوع المعاملة</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select transaction type" />
+                      <SelectValue placeholder="اختر نوع المعاملة" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="income">Income</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
+                    <SelectItem value="income">دخل</SelectItem>
+                    <SelectItem value="expense">مصروف</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -101,7 +101,7 @@ const TransactionForm: React.FC = () => {
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount ($)</FormLabel>
+                  <FormLabel>المبلغ (د.ج)</FormLabel>
                   <FormControl>
                     <Input type="number" placeholder="0.00" {...field} />
                   </FormControl>
@@ -115,23 +115,23 @@ const TransactionForm: React.FC = () => {
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel>التاريخ</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
                           variant={"outline"}
                           className={cn(
-                            "w-full pl-3 text-left font-normal",
+                            "w-full pl-3 text-right font-normal",
                             !field.value && "text-muted-foreground"
                           )}
                         >
                           {field.value ? (
                             format(field.value, "PPP")
                           ) : (
-                            <span>Pick a date</span>
+                            <span>اختر تاريخاً</span>
                           )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          <CalendarIcon className="mr-auto h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
@@ -156,9 +156,9 @@ const TransactionForm: React.FC = () => {
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Description</FormLabel>
+                <FormLabel>الوصف</FormLabel>
                 <FormControl>
-                  <Input placeholder="Transaction description" {...field} />
+                  <Input placeholder="وصف المعاملة" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -170,19 +170,20 @@ const TransactionForm: React.FC = () => {
             name="category"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Category</FormLabel>
+                <FormLabel>الفئة</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder="اختر الفئة" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="tuition">Tuition Fee</SelectItem>
-                    <SelectItem value="salary">Salary</SelectItem>
-                    <SelectItem value="supplies">Supplies</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="subscription">اشتراك طالب</SelectItem>
+                    <SelectItem value="teacher">مستحقات المعلمات</SelectItem>
+                    <SelectItem value="ads">إعلانات فيسبوك</SelectItem>
+                    <SelectItem value="utilities">فواتير ومرافق</SelectItem>
+                    <SelectItem value="taxes">ضرائب</SelectItem>
+                    <SelectItem value="other">أخرى</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -195,12 +196,12 @@ const TransactionForm: React.FC = () => {
             name="notes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notes</FormLabel>
+                <FormLabel>ملاحظات</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Additional notes (optional)" {...field} />
+                  <Textarea placeholder="ملاحظات إضافية (اختياري)" {...field} />
                 </FormControl>
                 <FormDescription>
-                  Any additional information about this transaction.
+                  أي معلومات إضافية عن هذه المعاملة.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -208,7 +209,7 @@ const TransactionForm: React.FC = () => {
           />
           
           <div className="flex justify-end">
-            <Button type="submit">Add Transaction</Button>
+            <Button type="submit">إضافة المعاملة</Button>
           </div>
         </form>
       </Form>

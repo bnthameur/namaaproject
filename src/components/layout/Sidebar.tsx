@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { BarChart3, BookOpen, CreditCard, DollarSign, GraduationCap, Settings, Users } from 'lucide-react';
+import { BarChart3, BookOpen, DollarSign, GraduationCap, Settings, Users } from 'lucide-react';
 import {
   Sidebar as SidebarComponent,
   SidebarContent,
@@ -18,32 +18,27 @@ import { cn } from '@/lib/utils';
 
 const navigationItems = [
   { 
-    name: 'Dashboard', 
+    name: 'لوحة التحكم', 
     path: '/', 
     icon: BarChart3 
   },
   { 
-    name: 'Finance', 
+    name: 'المالية', 
     path: '/finance', 
     icon: DollarSign 
   },
   { 
-    name: 'Students', 
+    name: 'الطلاب', 
     path: '/students', 
     icon: GraduationCap 
   },
   { 
-    name: 'Staff', 
+    name: 'المعلمات', 
     path: '/staff', 
     icon: Users 
   },
   { 
-    name: 'Classes', 
-    path: '/classes', 
-    icon: BookOpen 
-  },
-  { 
-    name: 'Settings', 
+    name: 'الإعدادات', 
     path: '/settings', 
     icon: Settings 
   },
@@ -56,14 +51,14 @@ const Sidebar: React.FC = () => {
     <SidebarComponent>
       <SidebarHeader className="flex items-center justify-center">
         <div className="flex items-center gap-2 p-2">
-          <CreditCard className="h-8 w-8 text-primary" />
-          <span className="font-semibold text-lg">SchoolFlow</span>
+          <BookOpen className="h-8 w-8 text-primary" />
+          <span className="font-semibold text-lg">مركز التعليم الخاص</span>
         </div>
       </SidebarHeader>
       
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>القائمة الرئيسية</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => (
@@ -91,7 +86,7 @@ const Sidebar: React.FC = () => {
       </SidebarContent>
       
       <SidebarFooter className="p-4 text-xs text-center text-muted-foreground">
-        SchoolFlow Management v1.0
+        مركز التعليم الخاص - الإصدار 1.0
       </SidebarFooter>
     </SidebarComponent>
   );
