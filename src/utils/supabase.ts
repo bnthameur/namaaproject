@@ -196,6 +196,11 @@ export const deleteStudent = async (id: string) => {
 
 // Teachers
 export const getTeachers = async () => {
+  if (!hasSupabaseCredentials) {
+    // Return mock data when Supabase is not connected
+    return mockData.teachers;
+  }
+
   const { data, error } = await supabase
     .from('teachers')
     .select('*')
@@ -271,6 +276,11 @@ export const deleteTeacher = async (id: string) => {
 
 // Transactions
 export const getTransactions = async () => {
+  if (!hasSupabaseCredentials) {
+    // Return mock data when Supabase is not connected
+    return mockData.transactions;
+  }
+
   const { data, error } = await supabase
     .from('transactions')
     .select(`
@@ -366,6 +376,20 @@ export const deleteTransaction = async (id: string) => {
 
 // Dashboard Statistics
 export const getDashboardStats = async () => {
+  if (!hasSupabaseCredentials) {
+    // Return mock data when Supabase is not connected
+    return {
+      activeStudentsCount: 42,
+      currentMonthIncome: 290000,
+      currentMonthExpenses: 210000,
+      teacherEarnings: mockData.teachers.map(teacher => ({
+        id: teacher.id,
+        name: teacher.name,
+        earnings: 57600 / mockData.teachers.length
+      }))
+    };
+  }
+
   const { data: activeStudentsCount, error: countError } = await supabase
     .rpc('get_active_students_count');
 
