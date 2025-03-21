@@ -48,7 +48,7 @@ const Sidebar: React.FC = () => {
   const location = useLocation();
   
   return (
-    <SidebarComponent>
+    <SidebarComponent side="right">
       <SidebarHeader className="flex items-center justify-center">
         <div className="flex items-center gap-2 p-2">
           <BookOpen className="h-8 w-8 text-primary" />
