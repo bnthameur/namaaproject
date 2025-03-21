@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +35,7 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { createTransaction, getStudents, getTeachers } from '@/utils/supabase';
 
 const formSchema = z.object({
   type: z.enum(['income', 'expense']),
@@ -42,11 +44,26 @@ const formSchema = z.object({
   category: z.string(),
   date: z.date(),
   notes: z.string().optional(),
+  student_id: z.string().optional(),
+  teacher_id: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 const TransactionForm: React.FC = () => {
+  // Fetch students and teachers for dropdown selectors
+  const { data: students } = useQuery({
+    queryKey: ['students'],
+    queryFn: getStudents,
+    enabled: typeof window !== 'undefined',
+  });
+
+  const { data: teachers } = useQuery({
+    queryKey: ['teachers'],
+    queryFn: getTeachers,
+    enabled: typeof window !== 'undefined',
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,15 +73,57 @@ const TransactionForm: React.FC = () => {
       category: '',
       date: new Date(),
       notes: '',
+      student_id: undefined,
+      teacher_id: undefined,
     },
   });
 
-  const onSubmit = (data: FormValues) => {
-    toast.success('تمت إضافة المعاملة بنجاح', {
-      description: `${data.type === 'income' ? 'دخل' : 'مصروف'}: ${data.amount} د.ج لـ${data.description}`,
-    });
-    
-    form.reset();
+  // Watch the transaction type to dynamically update the form
+  const transactionType = form.watch('type');
+  const selectedCategory = form.watch('category');
+
+  const onSubmit = async (data: FormValues) => {
+    try {
+      // Create the new transaction
+      await createTransaction(data);
+      
+      toast.success('تمت إضافة المعاملة بنجاح', {
+        description: `${data.type === 'income' ? 'دخل' : 'مصروف'}: ${data.amount} د.ج لـ${data.description}`,
+      });
+      
+      form.reset({
+        type: 'income',
+        amount: undefined,
+        description: '',
+        category: '',
+        date: new Date(),
+        notes: '',
+        student_id: undefined,
+        teacher_id: undefined,
+      });
+    } catch (error) {
+      console.error('Error submitting transaction:', error);
+      toast.error('حدث خطأ أثناء إضافة المعاملة', {
+        description: 'الرجاء المحاولة مرة أخرى أو الاتصال بمسؤول النظام.',
+      });
+    }
+  };
+
+  // Get category options based on transaction type
+  const getCategoryOptions = () => {
+    if (transactionType === 'income') {
+      return [
+        { value: 'subscription', label: 'اشتراك طالب' }
+      ];
+    } else {
+      return [
+        { value: 'teacher_payout', label: 'مستحقات المعلمات' },
+        { value: 'ads', label: 'إعلانات فيسبوك' },
+        { value: 'utilities', label: 'فواتير ومرافق' },
+        { value: 'taxes', label: 'ضرائب' },
+        { value: 'other', label: 'أخرى' }
+      ];
+    }
   };
 
   return (
@@ -103,7 +162,7 @@ const TransactionForm: React.FC = () => {
                 <FormItem>
                   <FormLabel>المبلغ (د.ج)</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="0.00" {...field} />
+                    <Input type="number" placeholder="0.00" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -171,25 +230,79 @@ const TransactionForm: React.FC = () => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>الفئة</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="اختر الفئة" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="subscription">اشتراك طالب</SelectItem>
-                    <SelectItem value="teacher">مستحقات المعلمات</SelectItem>
-                    <SelectItem value="ads">إعلانات فيسبوك</SelectItem>
-                    <SelectItem value="utilities">فواتير ومرافق</SelectItem>
-                    <SelectItem value="taxes">ضرائب</SelectItem>
-                    <SelectItem value="other">أخرى</SelectItem>
+                    {getCategoryOptions().map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
+          
+          {/* Conditional fields based on category */}
+          {transactionType === 'income' && selectedCategory === 'subscription' && (
+            <FormField
+              control={form.control}
+              name="student_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>الطالب</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر الطالب" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {students?.map(student => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {student.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+          
+          {transactionType === 'expense' && selectedCategory === 'teacher_payout' && (
+            <FormField
+              control={form.control}
+              name="teacher_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>المعلمة</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر المعلمة" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {teachers?.map(teacher => (
+                        <SelectItem key={teacher.id} value={teacher.id}>
+                          {teacher.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
           
           <FormField
             control={form.control}
