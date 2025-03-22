@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -81,19 +80,23 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
 
   const createPaymentMutation = useMutation({
     mutationFn: (data: z.infer<typeof paymentSchema>) => {
+      console.log("Creating transaction with type:", data.type);
       const paymentData = {
         type: data.type,
         category: data.type === 'income' ? 'subscription' : 'other',
         amount: data.amount,
         description: data.description,
         date: new Date(),
-        student_id: studentId
+        student_id: studentId,
+        teacher_id: student?.teachers?.id
       };
       return createTransaction(paymentData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student-transactions', studentId] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-transactions'] });
       toast({
         title: 'تمت الإضافة',
         description: 'تمت إضافة المدفوعات بنجاح',

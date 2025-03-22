@@ -192,6 +192,41 @@ export const deleteTeacher = async (id: string) => {
   return true;
 };
 
+// Get teacher earnings per student (for real-time tracking)
+export const getTeacherEarningsPerStudent = async (teacherId: string) => {
+  const { data: students, error } = await supabase
+    .from('students')
+    .select('id, name, subscription_fee')
+    .eq('teacher_id', teacherId)
+    .eq('active', true);
+  
+  if (error) {
+    console.error(`Error fetching students for teacher ${teacherId}:`, error);
+    throw error;
+  }
+  
+  const { data: teacher, error: teacherError } = await supabase
+    .from('teachers')
+    .select('percentage')
+    .eq('id', teacherId)
+    .single();
+  
+  if (teacherError) {
+    console.error(`Error fetching teacher percentage for ${teacherId}:`, teacherError);
+    throw teacherError;
+  }
+  
+  // Calculate earnings for each student
+  const earningsData = students.map(student => ({
+    student_id: student.id,
+    student_name: student.name,
+    subscription_fee: student.subscription_fee,
+    teacher_earnings: Math.round((student.subscription_fee * teacher.percentage) / 100)
+  }));
+  
+  return earningsData;
+};
+
 // Transactions
 export const getTransactions = async () => {
   const { data, error } = await supabase
@@ -286,9 +321,9 @@ export const getTransactionById = async (id: string) => {
 
 export const createTransaction = async (transaction: any) => {
   try {
+    console.log("Creating transaction:", transaction);
     const processedTransaction = {
       ...transaction,
-      type: transaction.type === 'دخل' ? 'income' : 'expense',
       date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
     };
 
@@ -343,8 +378,9 @@ export const deleteTransaction = async (id: string) => {
   return true;
 };
 
-// Dashboard Statistics
+// Enhanced Dashboard Statistics with real-time teacher payment tracking
 export const getDashboardStats = async () => {
+  // Get active students count
   const { data: activeStudentsCount, error: countError } = await supabase
     .rpc('get_active_students_count');
 
@@ -352,6 +388,7 @@ export const getDashboardStats = async () => {
     console.error('Error fetching active students count:', countError);
   }
 
+  // Get income for current month
   const { data: currentMonthIncome, error: incomeError } = await supabase
     .rpc('get_total_income_current_month');
 
@@ -359,6 +396,7 @@ export const getDashboardStats = async () => {
     console.error('Error fetching current month income:', incomeError);
   }
 
+  // Get expenses for current month
   const { data: currentMonthExpenses, error: expensesError } = await supabase
     .rpc('get_total_expenses_current_month');
 
@@ -366,39 +404,159 @@ export const getDashboardStats = async () => {
     console.error('Error fetching current month expenses:', expensesError);
   }
 
-  // Get teacher earnings
+  // Get active teachers
   const { data: teachers, error: teachersError } = await supabase
     .from('teachers')
-    .select('id, name')
+    .select('id, name, percentage')
     .eq('active', true);
 
   if (teachersError) {
     console.error('Error fetching teachers:', teachersError);
   }
 
+  // Calculate each teacher's current earnings and payment status
   const teacherEarnings = [];
   
   if (teachers) {
     for (const teacher of teachers) {
-      const { data: earnings, error: earningsError } = await supabase
-        .rpc('get_teacher_earnings', { teacher_uuid: teacher.id });
+      // Get teacher's active students
+      const { data: students, error: studentsError } = await supabase
+        .from('students')
+        .select('subscription_fee')
+        .eq('teacher_id', teacher.id)
+        .eq('active', true);
       
-      if (earningsError) {
-        console.error(`Error fetching earnings for teacher ${teacher.id}:`, earningsError);
-      } else {
-        teacherEarnings.push({
-          id: teacher.id,
-          name: teacher.name,
-          earnings: earnings || 0
-        });
+      if (studentsError) {
+        console.error(`Error fetching students for teacher ${teacher.id}:`, studentsError);
+        continue;
       }
+      
+      // Calculate total potential earnings from all active students
+      const totalPotentialEarnings = students.reduce((sum, student) => {
+        return sum + (student.subscription_fee * teacher.percentage / 100);
+      }, 0);
+      
+      // Get payments made to this teacher
+      const { data: payments, error: paymentsError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('teacher_id', teacher.id)
+        .eq('type', 'expense')
+        .eq('category', 'teacher_payout');
+      
+      if (paymentsError) {
+        console.error(`Error fetching payments for teacher ${teacher.id}:`, paymentsError);
+        continue;
+      }
+      
+      // Calculate total payments made
+      const totalPayments = payments.reduce((sum, payment) => {
+        return sum + payment.amount;
+      }, 0);
+      
+      // Calculate what is currently owed
+      const currentlyOwed = totalPotentialEarnings - totalPayments;
+      
+      teacherEarnings.push({
+        id: teacher.id,
+        name: teacher.name,
+        potentialEarnings: totalPotentialEarnings,
+        paidAmount: totalPayments,
+        owedAmount: currentlyOwed,
+        studentCount: students.length
+      });
     }
+  }
+
+  // Get recent transactions for the dashboard
+  const { data: recentTransactions, error: recentTransactionsError } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      students (
+        id, 
+        name
+      ),
+      teachers (
+        id,
+        name
+      )
+    `)
+    .order('date', { ascending: false })
+    .limit(5);
+
+  if (recentTransactionsError) {
+    console.error('Error fetching recent transactions:', recentTransactionsError);
   }
 
   return {
     activeStudentsCount: activeStudentsCount || 0,
     currentMonthIncome: currentMonthIncome || 0,
     currentMonthExpenses: currentMonthExpenses || 0,
-    teacherEarnings
+    teacherEarnings: teacherEarnings,
+    recentTransactions: recentTransactions || []
+  };
+};
+
+// Get detailed monthly financial summary
+export const getMonthlyFinancialSummary = async (year = new Date().getFullYear(), month = new Date().getMonth() + 1) => {
+  // Format date range for the query
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0); // Last day of the month
+  
+  // Get all transactions for the month
+  const { data: transactions, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      students (
+        id,
+        name
+      ),
+      teachers (
+        id,
+        name
+      )
+    `)
+    .gte('date', startDate.toISOString())
+    .lte('date', endDate.toISOString())
+    .order('date', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching monthly transactions:', error);
+    throw error;
+  }
+  
+  // Process the data to get summaries by category
+  const incomeByCategory: Record<string, number> = {};
+  const expensesByCategory: Record<string, number> = {};
+  
+  transactions.forEach(transaction => {
+    if (transaction.type === 'income') {
+      incomeByCategory[transaction.category] = (incomeByCategory[transaction.category] || 0) + transaction.amount;
+    } else {
+      expensesByCategory[transaction.category] = (expensesByCategory[transaction.category] || 0) + transaction.amount;
+    }
+  });
+  
+  // Calculate totals
+  const totalIncome = Object.values(incomeByCategory).reduce((sum, amount) => sum + amount, 0);
+  const totalExpenses = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
+  
+  return {
+    transactions,
+    summary: {
+      totalIncome,
+      totalExpenses,
+      netProfit: totalIncome - totalExpenses,
+      incomeByCategory,
+      expensesByCategory
+    },
+    period: {
+      year,
+      month,
+      startDate,
+      endDate
+    }
   };
 };
