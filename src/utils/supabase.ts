@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Get Supabase credentials from environment variables or use the provided ones
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://jsbugsfpgazasmfwjqlp.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzYnVnc2ZwZ2F6YXNtZndqcWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI1OTgzNjEsImV4cCI6MjA1ODE3NDM2MX0.1NlI5kdGDzY4C9Xabc1JWR0_u1p_IsSnrZYygaNhfjg';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

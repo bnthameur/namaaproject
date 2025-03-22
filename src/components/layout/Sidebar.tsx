@@ -1,5 +1,6 @@
 
 import React from 'react';
+import logo from "@/assets/logo.png";
 import { NavLink, useLocation } from 'react-router-dom';
 import { BarChart3, BookOpen, DollarSign, GraduationCap, Settings, Users } from 'lucide-react';
 import {
@@ -51,8 +52,7 @@ const Sidebar: React.FC = () => {
     <SidebarComponent side="right">
       <SidebarHeader className="flex items-center justify-center">
         <div className="flex items-center gap-2 p-2">
-          <BookOpen className="h-8 w-8 text-primary" />
-          <span className="font-semibold text-lg">مركز التعليم الخاص</span>
+        <img src={logo} alt="Logo" className="p-5" />
         </div>
       </SidebarHeader>
       
@@ -86,7 +86,7 @@ const Sidebar: React.FC = () => {
       </SidebarContent>
       
       <SidebarFooter className="p-4 text-xs text-center text-muted-foreground">
-        مركز التعليم الخاص - الإصدار 1.0
+       مركز نماء - الإصدار 1.0
       </SidebarFooter>
     </SidebarComponent>
   );
