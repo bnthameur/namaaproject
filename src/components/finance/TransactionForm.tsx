@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -51,7 +50,6 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const TransactionForm: React.FC = () => {
-  // Fetch students and teachers for dropdown selectors
   const { data: students } = useQuery({
     queryKey: ['students'],
     queryFn: getStudents,
@@ -78,13 +76,11 @@ const TransactionForm: React.FC = () => {
     },
   });
 
-  // Watch the transaction type to dynamically update the form
   const transactionType = form.watch('type');
   const selectedCategory = form.watch('category');
 
   const onSubmit = async (data: FormValues) => {
     try {
-      // Create the new transaction
       await createTransaction(data);
       
       toast.success('تمت إضافة المعاملة بنجاح', {
@@ -109,7 +105,6 @@ const TransactionForm: React.FC = () => {
     }
   };
 
-  // Get category options based on transaction type
   const getCategoryOptions = () => {
     if (transactionType === 'income') {
       return [
@@ -249,7 +244,6 @@ const TransactionForm: React.FC = () => {
             )}
           />
           
-          {/* Conditional fields based on category */}
           {transactionType === 'income' && selectedCategory === 'subscription' && (
             <FormField
               control={form.control}
@@ -257,13 +251,14 @@ const TransactionForm: React.FC = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>الطالب</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || "select-student"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر الطالب" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="select-student" disabled>اختر الطالب</SelectItem>
                       {students?.map(student => (
                         <SelectItem key={student.id} value={student.id}>
                           {student.name}
@@ -284,13 +279,14 @@ const TransactionForm: React.FC = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>المعلمة</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || "select-teacher"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر المعلمة" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="select-teacher" disabled>اختر المعلمة</SelectItem>
                       {teachers?.map(teacher => (
                         <SelectItem key={teacher.id} value={teacher.id}>
                           {teacher.name}

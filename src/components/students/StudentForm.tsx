@@ -221,7 +221,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">بدون معلمة</SelectItem>
+                        <SelectItem key="no-teacher" value="no-teacher">بدون معلمة</SelectItem>
                         {teachers.map((teacher) => (
                           <SelectItem key={teacher.id} value={teacher.id}>
                             {teacher.name}

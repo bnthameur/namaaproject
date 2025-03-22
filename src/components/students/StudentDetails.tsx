@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +25,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 
-// Schema for payment form
 const paymentSchema = z.object({
   amount: z.coerce.number().min(1, { message: 'يجب إدخال قيمة المبلغ' }),
   description: z.string().min(2, { message: 'يرجى إدخال وصف للمعاملة' }),
@@ -38,7 +36,6 @@ interface StudentDetailsProps {
   onClose: () => void;
 }
 
-// Map for category translations
 const categoryTranslation: Record<string, string> = {
   'autism': 'التوحد',
   'learning_difficulties': 'صعوبات التعلم',
@@ -52,7 +49,6 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
   const queryClient = useQueryClient();
   const [showPaymentForm, setShowPaymentForm] = React.useState(false);
   
-  // Form setup for payment
   const form = useForm<z.infer<typeof paymentSchema>>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
@@ -60,22 +56,19 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
       description: 'اشتراك شهري',
     },
   });
-  
-  // Fetch student data
+
   const { data: student, isLoading: isLoadingStudent } = useQuery({
     queryKey: ['student', studentId],
     queryFn: () => getStudentById(studentId),
     enabled: !!studentId,
   });
 
-  // Fetch student's transactions
   const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery({
     queryKey: ['student-transactions', studentId],
     queryFn: () => getStudentTransactions(studentId),
     enabled: !!studentId,
   });
 
-  // Mutation for creating a new payment
   const createPaymentMutation = useMutation({
     mutationFn: (data: z.infer<typeof paymentSchema>) => {
       const paymentData = {
@@ -107,12 +100,10 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
     },
   });
 
-  // Submit payment form
   const onSubmitPayment = (data: z.infer<typeof paymentSchema>) => {
     createPaymentMutation.mutate(data);
   };
 
-  // Calculate total payments
   const totalPayments = transactions.reduce((sum, transaction) => {
     if (transaction.type === 'دخل') {
       return sum + (transaction.amount || 0);
