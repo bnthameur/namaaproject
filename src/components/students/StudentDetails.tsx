@@ -72,7 +72,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
   const createPaymentMutation = useMutation({
     mutationFn: (data: z.infer<typeof paymentSchema>) => {
       const paymentData = {
-        type: 'دخل',
+        type: 'income',
         category: 'subscription',
         amount: data.amount,
         description: data.description,
@@ -105,7 +105,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
   };
 
   const totalPayments = transactions.reduce((sum, transaction) => {
-    if (transaction.type === 'دخل') {
+    if (transaction.type === 'income') {
       return sum + (transaction.amount || 0);
     }
     return sum;
@@ -324,7 +324,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
                             {format(new Date(transaction.date), 'PPP', { locale: ar })}
                           </TableCell>
                           <TableCell>
-                            <span className={transaction.type === 'دخل' 
+                            <span className={transaction.type === 'income' 
                               ? 'text-green-600' 
                               : 'text-red-600'}>
                               {transaction.type}

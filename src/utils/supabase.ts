@@ -7,45 +7,6 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIU
 // Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Mock data for testing when needed
-const mockData: Record<string, any[]> = {
-  students: [
-    { id: '1', name: 'سامي محمد', age: 8, category: 'التوحد', teacher_id: '1', active: true },
-    { id: '2', name: 'فاطمة عبد الله', age: 7, category: 'صعوبات التعلم', teacher_id: '2', active: true },
-    { id: '3', name: 'يوسف عمر', age: 9, category: 'مشاكل الذاكرة', teacher_id: '3', active: true }
-  ],
-  teachers: [
-    { id: '1', name: 'فاطمة بوزيد', specialty: 'التوحد', active: true },
-    { id: '2', name: 'مريم عمراني', specialty: 'صعوبات التعلم', active: true },
-    { id: '3', name: 'خديجة مرابط', specialty: 'مشاكل الذاكرة', active: true },
-    { id: '4', name: 'سعاد لعريبي', specialty: 'الفصل التحضيري', active: true }
-  ],
-  transactions: [
-    { 
-      id: '1', 
-      date: new Date().toISOString(), 
-      type: 'دخل', 
-      amount: 5000, 
-      description: 'اشتراك شهري', 
-      student_id: '1',
-      teacher_id: null,
-      students: { id: '1', name: 'سامي محمد' },
-      teachers: null
-    },
-    { 
-      id: '2', 
-      date: new Date().toISOString(), 
-      type: 'مصروف', 
-      amount: 2000, 
-      description: 'دفع للمعلمة', 
-      student_id: null,
-      teacher_id: '1',
-      students: null,
-      teachers: { id: '1', name: 'فاطمة بوزيد' }
-    }
-  ]
-};
-
 // Students
 export const getStudents = async () => {
   const { data, error } = await supabase
@@ -104,19 +65,23 @@ export const createStudent = async (student: any) => {
 };
 
 export const updateStudent = async (id: string, updates: any) => {
-  const { data, error } = await supabase
-    .from('students')
-    .update({ ...updates, updated_at: new Date() })
-    .eq('id', id)
-    .select()
-    .single();
-  
-  if (error) {
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .update({ ...updates, updated_at: new Date() })
+      .eq('id', id)
+      .select();
+    
+    if (error) {
+      console.error(`Error updating student with ID ${id}:`, error);
+      throw error;
+    }
+    
+    return data?.[0] || null;
+  } catch (error) {
     console.error(`Error updating student with ID ${id}:`, error);
     throw error;
   }
-  
-  return data;
 };
 
 export const deleteStudent = async (id: string) => {
@@ -194,19 +159,23 @@ export const createTeacher = async (teacher: any) => {
 };
 
 export const updateTeacher = async (id: string, updates: any) => {
-  const { data, error } = await supabase
-    .from('teachers')
-    .update({ ...updates, updated_at: new Date() })
-    .eq('id', id)
-    .select()
-    .single();
-  
-  if (error) {
+  try {
+    const { data, error } = await supabase
+      .from('teachers')
+      .update({ ...updates, updated_at: new Date() })
+      .eq('id', id)
+      .select();
+    
+    if (error) {
+      console.error(`Error updating teacher with ID ${id}:`, error);
+      throw error;
+    }
+    
+    return data?.[0] || null;
+  } catch (error) {
     console.error(`Error updating teacher with ID ${id}:`, error);
     throw error;
   }
-  
-  return data;
 };
 
 export const deleteTeacher = async (id: string) => {
@@ -316,34 +285,48 @@ export const getTransactionById = async (id: string) => {
 };
 
 export const createTransaction = async (transaction: any) => {
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert(transaction)
-    .select()
-    .single();
-  
-  if (error) {
+  try {
+    const processedTransaction = {
+      ...transaction,
+      type: transaction.type === 'دخل' ? 'income' : 'expense',
+      date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
+    };
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert(processedTransaction)
+      .select();
+    
+    if (error) {
+      console.error('Error creating transaction:', error);
+      throw error;
+    }
+    
+    return data?.[0] || null;
+  } catch (error) {
     console.error('Error creating transaction:', error);
     throw error;
   }
-  
-  return data;
 };
 
 export const updateTransaction = async (id: string, updates: any) => {
-  const { data, error } = await supabase
-    .from('transactions')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-  
-  if (error) {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .update(updates)
+      .eq('id', id)
+      .select();
+    
+    if (error) {
+      console.error(`Error updating transaction with ID ${id}:`, error);
+      throw error;
+    }
+    
+    return data?.[0] || null;
+  } catch (error) {
     console.error(`Error updating transaction with ID ${id}:`, error);
     throw error;
   }
-  
-  return data;
 };
 
 export const deleteTransaction = async (id: string) => {
