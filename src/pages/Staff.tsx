@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Download, Filter, MoreHorizontal, Plus, Search, Users, DollarSign, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, Filter, MoreHorizontal, Plus, Search, Users, Pencil, Trash, Eye } from 'lucide-react';
 import BlurCard from '@/components/ui/BlurCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,77 +22,97 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-
-// Sample data - Algerian female teachers with Arabic names
-const staff = [
-  {
-    id: 1001,
-    name: 'فاطمة بوزيد',
-    role: 'معلمة رئيسية',
-    specialty: 'صعوبات التعلم',
-    joinDate: new Date(2020, 6, 15),
-    students: 12,
-    studentPercent: 40,
-    earnings: 57600,
-    status: 'نشطة',
-    contactNumber: '0661234567',
-  },
-  {
-    id: 1002,
-    name: 'مريم عمراني',
-    role: 'معلمة',
-    specialty: 'التوحد',
-    joinDate: new Date(2021, 3, 10),
-    students: 10,
-    studentPercent: 35,
-    earnings: 42000,
-    status: 'نشطة',
-    contactNumber: '0551234567',
-  },
-  {
-    id: 1003,
-    name: 'خديجة مرابط',
-    role: 'معلمة',
-    specialty: 'مشاكل الذاكرة',
-    joinDate: new Date(2022, 1, 5),
-    students: 9,
-    studentPercent: 30,
-    earnings: 36000,
-    status: 'إجازة',
-    contactNumber: '0771234567',
-  },
-  {
-    id: 1004,
-    name: 'سعاد لعريبي',
-    role: 'معلمة مساعدة',
-    specialty: 'الفصل التحضيري',
-    joinDate: new Date(2022, 9, 20),
-    students: 11,
-    studentPercent: 25,
-    earnings: 44000,
-    status: 'نشطة',
-    contactNumber: '0661234568',
-  },
-];
+import { getTeachers, deleteTeacher } from '@/utils/supabase';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2 } from 'lucide-react';
+import TeacherForm from '@/components/teachers/TeacherForm';
+import TeacherDetails from '@/components/teachers/TeacherDetails';
 
 const Staff: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAddTeacher, setShowAddTeacher] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<any>(null);
+  const [viewingTeacher, setViewingTeacher] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [teacherToDelete, setTeacherToDelete] = useState<string | null>(null);
   
-  const filteredStaff = staff.filter(person => 
-    person.name.includes(searchTerm) ||
-    person.role.includes(searchTerm) ||
-    person.specialty.includes(searchTerm)
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch teachers data
+  const { data: teachers = [], isLoading } = useQuery({
+    queryKey: ['teachers'],
+    queryFn: getTeachers
+  });
+
+  // Delete teacher mutation
+  const deleteTeacherMutation = useMutation({
+    mutationFn: (id: string) => deleteTeacher(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: ['teachers']});
+      toast({
+        title: 'تم الحذف',
+        description: 'تم حذف المعلمة بنجاح',
+      });
+      setDeleteConfirmOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: 'خطأ',
+        description: 'فشل حذف المعلمة. حاول مرة أخرى.',
+        variant: 'destructive',
+      });
+      console.error('Delete error:', error);
+    },
+  });
+  
+  const filteredTeachers = teachers.filter(teacher => 
+    teacher.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalStudents = staff.reduce((sum, teacher) => sum + teacher.students, 0);
-  const totalEarnings = staff.reduce((sum, teacher) => sum + teacher.earnings, 0);
+  const handleDeleteTeacher = (id: string) => {
+    setTeacherToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (teacherToDelete) {
+      deleteTeacherMutation.mutate(teacherToDelete);
+    }
+  };
+
+  // Calculate statistics
+  const activeTeachers = teachers.filter(teacher => teacher.active).length;
+  const totalStudents = teachers.reduce((sum, teacher) => sum + (teacher.student_count || 0), 0);
+  const totalEarnings = teachers.reduce((sum, teacher) => {
+    // Calculate earnings based on percentage if available
+    const earnings = (teacher.student_fees || 0) * (teacher.percentage || 0) / 100;
+    return sum + earnings;
+  }, 0);
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold">إدارة المعلمات</h1>
         
-        <Button className="flex items-center gap-2">
+        <Button 
+          className="flex items-center gap-2"
+          onClick={() => {
+            setEditingTeacher(null);
+            setShowAddTeacher(true);
+          }}
+        >
           <Plus className="h-4 w-4" />
           <span>إضافة معلمة</span>
         </Button>
@@ -100,7 +120,7 @@ const Staff: React.FC = () => {
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <BlurCard className="flex flex-col items-center justify-center py-4">
-          <div className="text-4xl font-bold text-blue-600">{staff.length}</div>
+          <div className="text-4xl font-bold text-blue-600">{teachers.length}</div>
           <div className="text-sm text-muted-foreground mt-1">مجموع المعلمات</div>
         </BlurCard>
         
@@ -110,7 +130,7 @@ const Staff: React.FC = () => {
         </BlurCard>
         
         <BlurCard className="flex flex-col items-center justify-center py-4">
-          <div className="text-4xl font-bold text-amber-600">{staff.filter(t => t.status === 'نشطة').length}</div>
+          <div className="text-4xl font-bold text-amber-600">{activeTeachers}</div>
           <div className="text-sm text-muted-foreground mt-1">المعلمات النشطات</div>
         </BlurCard>
         
@@ -148,108 +168,162 @@ const Staff: React.FC = () => {
         </div>
         
         <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>الرقم</TableHead>
-                <TableHead>الاسم</TableHead>
-                <TableHead>التخصص</TableHead>
-                <TableHead>الطلاب</TableHead>
-                <TableHead>النسبة المئوية</TableHead>
-                <TableHead>المستحقات الشهرية</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead>رقم الهاتف</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStaff.map((person) => (
-                <TableRow key={person.id}>
-                  <TableCell className="font-medium">{person.id}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-primary/10 text-primary">
-                          {person.name[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div>{person.name}</div>
-                        <div className="text-xs text-muted-foreground">{person.role}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{person.specialty}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>{person.students} طالب</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-xs">
-                        <span>{person.studentPercent}%</span>
-                      </div>
-                      <Progress value={person.studentPercent} className="h-2" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium text-green-600">
-                    {person.earnings.toLocaleString()} د.ج
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      person.status === 'نشطة' 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {person.status}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <span>{person.contactNumber}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                        <DropdownMenuItem>عرض الملف الشخصي</DropdownMenuItem>
-                        <DropdownMenuItem>تعديل البيانات</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>سجل المدفوعات</DropdownMenuItem>
-                        <DropdownMenuItem>قائمة الطلاب</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">تعطيل الحساب</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center items-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>الرقم</TableHead>
+                  <TableHead>الاسم</TableHead>
+                  <TableHead>رقم الهاتف</TableHead>
+                  <TableHead>النسبة المئوية</TableHead>
+                  <TableHead>الطلاب</TableHead>
+                  <TableHead>المستحقات الشهرية</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead className="w-[120px]">الإجراءات</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredTeachers.map((teacher) => {
+                  const earnings = (teacher.student_fees || 0) * (teacher.percentage || 0) / 100;
+                  const studentPercent = teacher.student_count ? (teacher.student_count / (totalStudents || 1)) * 100 : 0;
+                  
+                  return (
+                    <TableRow key={teacher.id}>
+                      <TableCell className="font-medium">{teacher.id.substring(0, 8)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary/10 text-primary">
+                              {teacher.name[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div>{teacher.name}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{teacher.phone || 'غير متوفر'}</TableCell>
+                      <TableCell>{teacher.percentage || 0}%</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span>{teacher.student_count || 0} طالب</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-green-600">
+                        {earnings.toLocaleString()} د.ج
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          teacher.active 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {teacher.active ? 'نشطة' : 'غير نشطة'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2 rtl:space-x-reverse">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => setViewingTeacher(teacher.id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => {
+                              setEditingTeacher(teacher);
+                              setShowAddTeacher(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleDeleteTeacher(teacher.id)}
+                          >
+                            <Trash className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {filteredTeachers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      لا توجد معلمات مطابقة لبحثك
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </div>
         
         <div className="mt-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
           <h3 className="text-lg font-medium text-blue-800 mb-2">نظام الأرباح للمعلمات</h3>
           <p className="text-sm text-blue-600 mb-2">تحصل المعلمات على نسبة من اشتراك كل طالب يدرسونه، وتختلف هذه النسبة حسب:</p>
           <ul className="list-disc list-inside text-sm text-blue-600 space-y-1">
-            <li>تخصص المعلمة والفئة التي تدرسها</li>
-            <li>عدد سنوات الخبرة في المركز</li>
+            <li>نسبة المعلمة المتفق عليها</li>
             <li>عدد الطلاب المسجلين مع المعلمة</li>
+            <li>اشتراكات الطلاب المدفوعة</li>
           </ul>
-          <div className="flex items-center mt-3 gap-2 text-amber-600">
-            <Star className="h-4 w-4" />
-            <span className="text-sm font-medium">يتم حساب المستحقات شهرياً على أساس الاشتراكات المدفوعة</span>
-          </div>
         </div>
       </BlurCard>
+
+      {/* Teacher Form Dialog */}
+      {showAddTeacher && (
+        <TeacherForm 
+          teacher={editingTeacher}
+          isOpen={showAddTeacher} 
+          onClose={() => {
+            setShowAddTeacher(false);
+            setEditingTeacher(null);
+          }}
+        />
+      )}
+
+      {/* Teacher Details */}
+      {viewingTeacher && (
+        <TeacherDetails 
+          teacherId={viewingTeacher}
+          isOpen={!!viewingTeacher}
+          onClose={() => setViewingTeacher(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>هل أنت متأكد من حذف هذه المعلمة؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف بيانات المعلمة بشكل نهائي. هذا الإجراء لا يمكن التراجع عنه.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700"
+              onClick={confirmDelete}
+              disabled={deleteTeacherMutation.isPending}
+            >
+              {deleteTeacherMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : 'تأكيد الحذف'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

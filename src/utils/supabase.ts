@@ -1,66 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Get Supabase credentials from environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-// Check if credentials are available
-const hasSupabaseCredentials = Boolean(supabaseUrl && supabaseAnonKey);
-
-// Log warning if credentials are missing
-if (!hasSupabaseCredentials) {
-  console.warn('Supabase credentials missing. Running in mock mode. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables for production use.');
-}
+// Get Supabase credentials from environment variables or use the provided ones
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://jsbugsfpgazasmfwjqlp.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzYnVnc2ZwZ2F6YXNtZndqcWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI1OTgzNjEsImV4cCI6MjA1ODE3NDM2MX0.1NlI5kdGDzY4C9Xabc1JWR0_u1p_IsSnrZYygaNhfjg';
 
 // Create Supabase client
-export const supabase = hasSupabaseCredentials 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : mockSupabaseClient();
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Create a mock Supabase client when credentials are not available
-function mockSupabaseClient() {
-  // This is a very simple mock implementation
-  // Return a mock object that simulates Supabase behavior without making actual API calls
-  return {
-    from: (table: string) => ({
-      select: (query?: string) => ({
-        eq: () => ({
-          single: async () => ({ data: mockData[table]?.[0] || null, error: null }),
-          order: () => ({ data: mockData[table] || [], error: null })
-        }),
-        order: () => ({ data: mockData[table] || [], error: null })
-      }),
-      insert: (data: any) => ({
-        select: () => ({
-          single: async () => ({ data, error: null })
-        })
-      }),
-      update: (data: any) => ({
-        eq: () => ({
-          select: () => ({
-            single: async () => ({ data, error: null })
-          })
-        })
-      }),
-      delete: () => ({
-        eq: () => ({ error: null })
-      })
-    }),
-    rpc: (func: string, params?: any) => {
-      // Mock RPC functions
-      const mockRpcResponses: Record<string, any> = {
-        get_active_students_count: 42,
-        get_total_income_current_month: 290000,
-        get_total_expenses_current_month: 210000,
-        get_teacher_earnings: 57600
-      };
-      
-      return { data: mockRpcResponses[func] || 0, error: null };
-    }
-  };
-}
-
-// Mock data for testing when Supabase is not connected
+// Mock data for testing when needed
 const mockData: Record<string, any[]> = {
   students: [
     { id: '1', name: 'سامي محمد', age: 8, category: 'التوحد', teacher_id: '1', active: true },
@@ -101,14 +48,6 @@ const mockData: Record<string, any[]> = {
 
 // Students
 export const getStudents = async () => {
-  if (!hasSupabaseCredentials) {
-    // Return mock data when Supabase is not connected
-    return mockData.students.map(student => ({
-      ...student,
-      teachers: mockData.teachers.find(t => t.id === student.teacher_id) || null
-    }));
-  }
-
   const { data, error } = await supabase
     .from('students')
     .select(`
@@ -196,11 +135,6 @@ export const deleteStudent = async (id: string) => {
 
 // Teachers
 export const getTeachers = async () => {
-  if (!hasSupabaseCredentials) {
-    // Return mock data when Supabase is not connected
-    return mockData.teachers;
-  }
-
   const { data, error } = await supabase
     .from('teachers')
     .select('*')
@@ -223,6 +157,21 @@ export const getTeacherById = async (id: string) => {
   
   if (error) {
     console.error(`Error fetching teacher with ID ${id}:`, error);
+    throw error;
+  }
+  
+  return data;
+};
+
+export const getTeacherStudents = async (teacherId: string) => {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('teacher_id', teacherId)
+    .order('name');
+  
+  if (error) {
+    console.error(`Error fetching students for teacher ${teacherId}:`, error);
     throw error;
   }
   
@@ -276,11 +225,6 @@ export const deleteTeacher = async (id: string) => {
 
 // Transactions
 export const getTransactions = async () => {
-  if (!hasSupabaseCredentials) {
-    // Return mock data when Supabase is not connected
-    return mockData.transactions;
-  }
-
   const { data, error } = await supabase
     .from('transactions')
     .select(`
@@ -298,6 +242,48 @@ export const getTransactions = async () => {
   
   if (error) {
     console.error('Error fetching transactions:', error);
+    throw error;
+  }
+  
+  return data;
+};
+
+export const getStudentTransactions = async (studentId: string) => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      students (
+        id,
+        name
+      )
+    `)
+    .eq('student_id', studentId)
+    .order('date', { ascending: false });
+  
+  if (error) {
+    console.error(`Error fetching transactions for student ${studentId}:`, error);
+    throw error;
+  }
+  
+  return data;
+};
+
+export const getTeacherTransactions = async (teacherId: string) => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      teachers (
+        id,
+        name
+      )
+    `)
+    .eq('teacher_id', teacherId)
+    .order('date', { ascending: false });
+  
+  if (error) {
+    console.error(`Error fetching transactions for teacher ${teacherId}:`, error);
     throw error;
   }
   
@@ -376,20 +362,6 @@ export const deleteTransaction = async (id: string) => {
 
 // Dashboard Statistics
 export const getDashboardStats = async () => {
-  if (!hasSupabaseCredentials) {
-    // Return mock data when Supabase is not connected
-    return {
-      activeStudentsCount: 42,
-      currentMonthIncome: 290000,
-      currentMonthExpenses: 210000,
-      teacherEarnings: mockData.teachers.map(teacher => ({
-        id: teacher.id,
-        name: teacher.name,
-        earnings: 57600 / mockData.teachers.length
-      }))
-    };
-  }
-
   const { data: activeStudentsCount, error: countError } = await supabase
     .rpc('get_active_students_count');
 

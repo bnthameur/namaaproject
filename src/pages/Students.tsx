@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Download, Filter, MoreHorizontal, Plus, Search } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, Filter, MoreHorizontal, Plus, Search, Pencil, Trash, Eye } from 'lucide-react';
 import BlurCard from '@/components/ui/BlurCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,126 +21,93 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-
-// Sample data - Algerian students with Arabic names
-const students = [
-  {
-    id: 1001,
-    name: 'يوسف بن سالم',
-    category: 'التوحد',
-    age: 8,
-    feesStatus: 'مدفوع',
-    attendance: 92,
-    parentName: 'عبد القادر بن سالم',
-    contactNumber: '0661234567',
-  },
-  {
-    id: 1002,
-    name: 'فاطمة الزهراء مرزوقي',
-    category: 'صعوبات التعلم',
-    age: 10,
-    feesStatus: 'قيد الانتظار',
-    attendance: 87,
-    parentName: 'مراد مرزوقي',
-    contactNumber: '0551234567',
-  },
-  {
-    id: 1003,
-    name: 'أيمن عبد النور',
-    category: 'مشاكل الذاكرة',
-    age: 7,
-    feesStatus: 'جزئي',
-    attendance: 95,
-    parentName: 'محمد عبد النور',
-    contactNumber: '0771234567',
-  },
-  {
-    id: 1004,
-    name: 'سلمى بوشامة',
-    category: 'حالات طبية',
-    age: 9,
-    feesStatus: 'مدفوع',
-    attendance: 80,
-    parentName: 'سهيلة بوشامة',
-    contactNumber: '0661234568',
-  },
-  {
-    id: 1005,
-    name: 'عبد الرحمن قاسي',
-    category: 'صعوبات التعلم',
-    age: 11,
-    feesStatus: 'مدفوع',
-    attendance: 98,
-    parentName: 'صالح قاسي',
-    contactNumber: '0551234568',
-  },
-  {
-    id: 1006,
-    name: 'زينب مخلوفي',
-    category: 'الفصل التحضيري',
-    age: 6,
-    feesStatus: 'قيد الانتظار',
-    attendance: 89,
-    parentName: 'نورة مخلوفي',
-    contactNumber: '0771234568',
-  },
-  {
-    id: 1007,
-    name: 'رياض توفيق',
-    category: 'التوحد',
-    age: 10,
-    feesStatus: 'مدفوع',
-    attendance: 93,
-    parentName: 'سفيان توفيق',
-    contactNumber: '0661234569',
-  },
-  {
-    id: 1008,
-    name: 'أمينة بوضياف',
-    category: 'حالات طبية',
-    age: 8,
-    feesStatus: 'جزئي',
-    attendance: 85,
-    parentName: 'ليلى بوضياف',
-    contactNumber: '0551234569',
-  },
-  {
-    id: 1009,
-    name: 'محمد أمين علي',
-    category: 'مشاكل الذاكرة',
-    age: 9,
-    feesStatus: 'مدفوع',
-    attendance: 91,
-    parentName: 'عماد علي',
-    contactNumber: '0771234569',
-  },
-  {
-    id: 1010,
-    name: 'ياسمين بن عودة',
-    category: 'الفصل التحضيري',
-    age: 5,
-    feesStatus: 'قيد الانتظار',
-    attendance: 96,
-    parentName: 'فريد بن عودة',
-    contactNumber: '0661234570',
-  },
-];
+import { getStudents, deleteStudent } from '@/utils/supabase';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2 } from 'lucide-react';
+import StudentForm from '@/components/students/StudentForm';
+import StudentDetails from '@/components/students/StudentDetails';
 
 const Students: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [viewingStudent, setViewingStudent] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch students data
+  const { data: students = [], isLoading } = useQuery({
+    queryKey: ['students'],
+    queryFn: getStudents
+  });
+
+  // Delete student mutation
+  const deleteStudentMutation = useMutation({
+    mutationFn: (id: string) => deleteStudent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: ['students']});
+      toast({
+        title: 'تم الحذف',
+        description: 'تم حذف الطالب بنجاح',
+      });
+      setDeleteConfirmOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: 'خطأ',
+        description: 'فشل حذف الطالب. حاول مرة أخرى.',
+        variant: 'destructive',
+      });
+      console.error('Delete error:', error);
+    },
+  });
   
   const filteredStudents = students.filter(student => 
-    student.name.includes(searchTerm) ||
-    student.id.toString().includes(searchTerm)
+    student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.id?.toString().includes(searchTerm)
   );
+
+  const handleDeleteStudent = (id: string) => {
+    setStudentToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (studentToDelete) {
+      deleteStudentMutation.mutate(studentToDelete);
+    }
+  };
 
   // Student category counts
   const categoryCount = {
-    autism: students.filter(s => s.category === 'التوحد').length,
-    learning: students.filter(s => s.category === 'صعوبات التعلم').length,
-    memory: students.filter(s => s.category === 'مشاكل الذاكرة').length,
-    medical: students.filter(s => s.category === 'حالات طبية').length,
-    prep: students.filter(s => s.category === 'الفصل التحضيري').length,
+    autism: students.filter(s => s.category === 'autism').length,
+    learning: students.filter(s => s.category === 'learning_difficulties').length,
+    memory: students.filter(s => s.category === 'memory_issues').length,
+    medical: students.filter(s => s.category === 'medical_conditions').length,
+    prep: students.filter(s => s.category === 'preparatory').length,
+  };
+
+  // Translation map for categories
+  const categoryTranslation: Record<string, string> = {
+    'autism': 'التوحد',
+    'learning_difficulties': 'صعوبات التعلم',
+    'memory_issues': 'مشاكل الذاكرة',
+    'medical_conditions': 'حالات طبية',
+    'preparatory': 'الفصل التحضيري'
   };
 
   return (
@@ -148,7 +115,13 @@ const Students: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold">إدارة الطلاب</h1>
         
-        <Button className="flex items-center gap-2">
+        <Button 
+          className="flex items-center gap-2"
+          onClick={() => {
+            setEditingStudent(null);
+            setShowAddStudent(true);
+          }}
+        >
           <Plus className="h-4 w-4" />
           <span>إضافة طالب</span>
         </Button>
@@ -209,93 +182,138 @@ const Students: React.FC = () => {
         </div>
         
         <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>رقم الطالب</TableHead>
-                <TableHead>الاسم</TableHead>
-                <TableHead>الفئة</TableHead>
-                <TableHead>العمر</TableHead>
-                <TableHead>حالة الدفع</TableHead>
-                <TableHead>الحضور</TableHead>
-                <TableHead>ولي الأمر</TableHead>
-                <TableHead>رقم الهاتف</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStudents.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell className="font-medium">{student.id}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-primary/10 text-primary">
-                          {student.name[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span>{student.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{student.category}</TableCell>
-                  <TableCell>{student.age} سنوات</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      student.feesStatus === 'مدفوع' 
-                        ? 'bg-green-100 text-green-700' 
-                        : student.feesStatus === 'قيد الانتظار'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {student.feesStatus}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-16 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full ${
-                            student.attendance >= 95 
-                              ? 'bg-green-500' 
-                              : student.attendance >= 90
-                                ? 'bg-blue-500'
-                                : student.attendance >= 85
-                                  ? 'bg-yellow-500'
-                                  : 'bg-red-500'
-                          }`}
-                          style={{ width: `${student.attendance}%` }}
-                        />
-                      </div>
-                      <span className="text-sm">{student.attendance}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{student.parentName}</TableCell>
-                  <TableCell>{student.contactNumber}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
-                        <DropdownMenuItem>عرض التفاصيل</DropdownMenuItem>
-                        <DropdownMenuItem>تعديل بيانات الطالب</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>سجل الدفع</DropdownMenuItem>
-                        <DropdownMenuItem>سجل الحضور</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">إزالة الطالب</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center items-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>رقم الطالب</TableHead>
+                  <TableHead>الاسم</TableHead>
+                  <TableHead>العمر</TableHead>
+                  <TableHead>الفئة</TableHead>
+                  <TableHead>الاشتراك</TableHead>
+                  <TableHead>المعلمة</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead className="w-[120px]">الإجراءات</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredStudents.map((student) => (
+                  <TableRow key={student.id}>
+                    <TableCell className="font-medium">{student.id.substring(0, 8)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {student.name[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{student.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{student.age} سنوات</TableCell>
+                    <TableCell>{categoryTranslation[student.category] || student.category}</TableCell>
+                    <TableCell>{student.subscription_fee?.toLocaleString() || 0} د.ج</TableCell>
+                    <TableCell>{student.teachers?.name || 'غير معين'}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        student.active 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {student.active ? 'نشط' : 'غير نشط'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2 rtl:space-x-reverse">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => setViewingStudent(student.id)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            setEditingStudent(student);
+                            setShowAddStudent(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDeleteStudent(student.id)}
+                        >
+                          <Trash className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredStudents.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      لا توجد طلاب مطابقين لبحثك
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </BlurCard>
+
+      {/* Student Form Dialog */}
+      {showAddStudent && (
+        <StudentForm 
+          student={editingStudent}
+          isOpen={showAddStudent} 
+          onClose={() => {
+            setShowAddStudent(false);
+            setEditingStudent(null);
+          }}
+        />
+      )}
+
+      {/* Student Details */}
+      {viewingStudent && (
+        <StudentDetails 
+          studentId={viewingStudent}
+          isOpen={!!viewingStudent}
+          onClose={() => setViewingStudent(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>هل أنت متأكد من حذف هذا الطالب؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف بيانات الطالب بشكل نهائي. هذا الإجراء لا يمكن التراجع عنه.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700"
+              onClick={confirmDelete}
+              disabled={deleteStudentMutation.isPending}
+            >
+              {deleteStudentMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : 'تأكيد الحذف'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
