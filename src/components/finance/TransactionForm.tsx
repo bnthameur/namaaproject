@@ -49,7 +49,11 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-const TransactionForm: React.FC = () => {
+interface TransactionFormProps {
+  onSuccess?: () => void;
+}
+
+const TransactionForm: React.FC<TransactionFormProps> = ({ onSuccess }) => {
   const { data: students } = useQuery({
     queryKey: ['students'],
     queryFn: getStudents,
@@ -97,6 +101,10 @@ const TransactionForm: React.FC = () => {
         student_id: undefined,
         teacher_id: undefined,
       });
+
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       console.error('Error submitting transaction:', error);
       toast.error('حدث خطأ أثناء إضافة المعاملة', {

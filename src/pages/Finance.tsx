@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Calendar, Download, Filter, Plus } from 'lucide-react';
 import { format } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
 import BlurCard from '@/components/ui/BlurCard';
 import TransactionForm from '@/components/finance/TransactionForm';
 import { Button } from '@/components/ui/button';
@@ -28,42 +29,108 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-
-// Sample data
-const transactions = Array.from({ length: 20 }).map((_, i) => ({
-  id: i + 1,
-  type: i % 3 === 0 ? 'expense' : 'income',
-  description: i % 3 === 0 
-    ? ['مستحقات المعلمات', 'مستلزمات', 'صيانة', 'فواتير', 'إعلانات فيسبوك'][i % 5] 
-    : ['اشتراك طالب', 'رسوم تسجيل', 'اشتراك خاص', 'اشتراك شهري', 'دفعة مقدمة'][i % 5],
-  amount: i % 3 === 0 
-    ? Math.floor(Math.random() * 10000) + 1000 
-    : Math.floor(Math.random() * 5000) + 1000,
-  category: i % 3 === 0 
-    ? ['مستحقات', 'مستلزمات', 'صيانة', 'فواتير', 'إعلانات'][i % 5] 
-    : ['اشتراك', 'رسوم', 'اشتراك خاص', 'اشتراك شهري', 'مقدم'][i % 5],
-  date: new Date(2023, 8, 30 - i),
-  paymentMethod: ['نقداً', 'تحويل بنكي', 'شيك', 'بريد'][i % 4],
-  status: ['مكتمل', 'قيد الانتظار', 'مكتمل', 'مكتمل'][i % 4],
-}));
+import { getTransactions } from '@/utils/supabase';
+import { Loader2 } from 'lucide-react';
 
 const Finance: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   
-  const filteredTransactions = transactions.filter(transaction => {
+  const { data: transactions = [], isLoading, refetch } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: getTransactions,
+  });
+  
+  const handleTransactionAdded = () => {
+    refetch();
+    setIsDialogOpen(false);
+  };
+  
+  const filteredTransactions = transactions.filter((transaction: any) => {
     return (
-      (searchTerm === '' || transaction.description.includes(searchTerm)) &&
+      (searchTerm === '' || 
+        (transaction.description && transaction.description.includes(searchTerm)) ||
+        (transaction.students?.name && transaction.students.name.includes(searchTerm)) ||
+        (transaction.teachers?.name && transaction.teachers.name.includes(searchTerm))
+      ) &&
       (filterType === null || transaction.type === filterType)
     );
   });
+
+  const renderTransactionsList = (transactions: any[]) => {
+    if (isLoading) {
+      return (
+        <div className="flex justify-center items-center p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (transactions.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+            لا توجد معاملات مالية متطابقة مع البحث
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return transactions.map((transaction: any) => (
+      <TableRow key={transaction.id}>
+        <TableCell className="font-medium">#{transaction.id.slice(0, 6)}</TableCell>
+        <TableCell>
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            transaction.type === 'income' 
+              ? 'bg-green-100 text-green-700' 
+              : 'bg-red-100 text-red-700'
+          }`}>
+            {transaction.type === 'income' ? 'دخل' : 'مصروف'}
+          </span>
+        </TableCell>
+        <TableCell>
+          {transaction.description}
+          {transaction.students?.name && (
+            <div className="text-xs text-muted-foreground mt-1">
+              الطالب: {transaction.students.name}
+            </div>
+          )}
+          {transaction.teachers?.name && (
+            <div className="text-xs text-muted-foreground mt-1">
+              المعلمة: {transaction.teachers.name}
+            </div>
+          )}
+        </TableCell>
+        <TableCell>{transaction.category}</TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3 text-muted-foreground" />
+            <span>{transaction.date ? format(new Date(transaction.date), 'dd MMM yyyy') : 'N/A'}</span>
+          </div>
+        </TableCell>
+        <TableCell className={`font-medium ${
+          transaction.type === 'income' 
+            ? 'text-green-600' 
+            : 'text-red-600'
+        }`}>
+          {transaction.type === 'income' ? '+' : '-'}{transaction.amount} د.ج
+        </TableCell>
+        <TableCell>
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700`}>
+            مكتمل
+          </span>
+        </TableCell>
+      </TableRow>
+    ));
+  };
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold">إدارة المالية</h1>
         
-        <Dialog>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
@@ -74,7 +141,7 @@ const Finance: React.FC = () => {
             <DialogHeader>
               <DialogTitle>إضافة معاملة جديدة</DialogTitle>
             </DialogHeader>
-            <TransactionForm />
+            <TransactionForm onSuccess={handleTransactionAdded} />
           </DialogContent>
         </Dialog>
       </div>
@@ -137,44 +204,7 @@ const Finance: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell className="font-medium">#{transaction.id}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        transaction.type === 'income' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-red-100 text-red-700'
-                      }`}>
-                        {transaction.type === 'income' ? 'دخل' : 'مصروف'}
-                      </span>
-                    </TableCell>
-                    <TableCell>{transaction.description}</TableCell>
-                    <TableCell>{transaction.category}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span>{format(transaction.date, 'dd MMM yyyy')}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={`font-medium ${
-                      transaction.type === 'income' 
-                        ? 'text-green-600' 
-                        : 'text-red-600'
-                    }`}>
-                      {transaction.type === 'income' ? '+' : '-'}{transaction.amount} د.ج
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        transaction.status === 'مكتمل' 
-                          ? 'bg-blue-100 text-blue-700' 
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {transaction.status}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {renderTransactionsList(filteredTransactions)}
               </TableBody>
             </Table>
           </BlurCard>
@@ -194,33 +224,7 @@ const Finance: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions
-                  .filter(t => t.type === 'income')
-                  .map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="font-medium">#{transaction.id}</TableCell>
-                      <TableCell>{transaction.description}</TableCell>
-                      <TableCell>{transaction.category}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span>{format(transaction.date, 'dd MMM yyyy')}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium text-green-600">
-                        +{transaction.amount} د.ج
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          transaction.status === 'مكتمل' 
-                            ? 'bg-blue-100 text-blue-700' 
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {transaction.status}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                {renderTransactionsList(filteredTransactions.filter((t: any) => t.type === 'income'))}
               </TableBody>
             </Table>
           </BlurCard>
@@ -240,33 +244,7 @@ const Finance: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions
-                  .filter(t => t.type === 'expense')
-                  .map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="font-medium">#{transaction.id}</TableCell>
-                      <TableCell>{transaction.description}</TableCell>
-                      <TableCell>{transaction.category}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span>{format(transaction.date, 'dd MMM yyyy')}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium text-red-600">
-                        -{transaction.amount} د.ج
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          transaction.status === 'مكتمل' 
-                            ? 'bg-blue-100 text-blue-700' 
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {transaction.status}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                {renderTransactionsList(filteredTransactions.filter((t: any) => t.type === 'expense'))}
               </TableBody>
             </Table>
           </BlurCard>

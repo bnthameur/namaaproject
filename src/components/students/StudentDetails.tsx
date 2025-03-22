@@ -83,6 +83,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student-transactions', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast({
         title: 'تمت الإضافة',
         description: 'تمت إضافة المدفوعات بنجاح',
@@ -327,7 +328,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
                             <span className={transaction.type === 'income' 
                               ? 'text-green-600' 
                               : 'text-red-600'}>
-                              {transaction.type}
+                              {transaction.type === 'income' ? 'دخل' : 'مصروف'}
                             </span>
                           </TableCell>
                           <TableCell>{transaction.amount?.toLocaleString() || 0} د.ج</TableCell>
