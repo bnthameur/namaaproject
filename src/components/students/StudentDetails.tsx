@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,8 +25,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const paymentSchema = z.object({
+  type: z.enum(['income', 'expense']),
   amount: z.coerce.number().min(1, { message: 'يجب إدخال قيمة المبلغ' }),
   description: z.string().min(2, { message: 'يرجى إدخال وصف للمعاملة' }),
 });
@@ -52,6 +61,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
   const form = useForm<z.infer<typeof paymentSchema>>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
+      type: 'income',
       amount: 0,
       description: 'اشتراك شهري',
     },
@@ -72,8 +82,8 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
   const createPaymentMutation = useMutation({
     mutationFn: (data: z.infer<typeof paymentSchema>) => {
       const paymentData = {
-        type: 'income',
-        category: 'subscription',
+        type: data.type,
+        category: data.type === 'income' ? 'subscription' : 'other',
         amount: data.amount,
         description: data.description,
         date: new Date(),
@@ -246,6 +256,31 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
                     <h3 className="text-lg font-medium mb-4">إضافة دفعة جديدة</h3>
                     <Form {...form}>
                       <form onSubmit={form.handleSubmit(onSubmitPayment)} className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="type"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>نوع المعاملة</FormLabel>
+                              <Select 
+                                onValueChange={field.onChange} 
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="اختر نوع المعاملة" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="income">دخل</SelectItem>
+                                  <SelectItem value="expense">مصروف</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
                         <FormField
                           control={form.control}
                           name="amount"
