@@ -135,7 +135,7 @@ const Students: React.FC = () => {
         student.active ? 'نشط' : 'غير نشط'
       ]);
       
-      (doc as any).autoTable({
+      doc.autoTable({
         head: tableHeaders,
         body: tableData,
         startY: 30,
@@ -158,12 +158,14 @@ const Students: React.FC = () => {
         }
       });
       
-      const pdfOutput = doc.output('blob');
-      const url = URL.createObjectURL(pdfOutput);
+      const pdfBlob = doc.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
       link.href = url;
       link.download = 'students-list.pdf';
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
       toast({
@@ -386,3 +388,4 @@ const Students: React.FC = () => {
 };
 
 export default Students;
+

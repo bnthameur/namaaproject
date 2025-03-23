@@ -84,7 +84,7 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
         format: 'a4',
       });
       
-      // RTL support (without loading external fonts that might cause issues)
+      // RTL support
       doc.setR2L(true);
       
       // Add title
@@ -145,7 +145,8 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
       }
       
       // Add table to the document using jspdf-autotable
-      (doc as any).autoTable({
+      // @ts-ignore
+      doc.autoTable({
         head: tableHeaders,
         body: tableData,
         startY: 40,
@@ -181,13 +182,15 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
         }
       });
       
-      // Save the PDF - using direct download instead of doc.save() which might be blocked
-      const pdfOutput = doc.output('blob');
-      const url = URL.createObjectURL(pdfOutput);
+      // Save the PDF with direct download
+      const pdfBlob = doc.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `financial-transactions-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      document.body.appendChild(link); // Append to body to make sure it works in all browsers
       link.click();
+      document.body.removeChild(link); // Clean up
       URL.revokeObjectURL(url);
       
       toast({
