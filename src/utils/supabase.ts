@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // Get Supabase credentials from environment variables or use the provided ones
@@ -6,6 +7,96 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIU
 
 // Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Teachers
+export const getTeachers = async () => {
+  const { data, error } = await supabase
+    .from('teachers')
+    .select('*')
+    .order('name');
+  
+  if (error) {
+    console.error('Error fetching teachers:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+export const getTeacherById = async (id: string) => {
+  const { data, error } = await supabase
+    .from('teachers')
+    .select('*')
+    .eq('id', id)
+    .single();
+  
+  if (error) {
+    console.error(`Error fetching teacher with ID ${id}:`, error);
+    throw error;
+  }
+  
+  return data;
+};
+
+export const getTeacherStudents = async (teacherId: string) => {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('teacher_id', teacherId)
+    .order('name');
+  
+  if (error) {
+    console.error(`Error fetching students for teacher ${teacherId}:`, error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+export const createTeacher = async (teacher: any) => {
+  const { data, error } = await supabase
+    .from('teachers')
+    .insert(teacher)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error creating teacher:', error);
+    throw error;
+  }
+  
+  return data;
+};
+
+export const updateTeacher = async (id: string, updates: any) => {
+  const { data, error } = await supabase
+    .from('teachers')
+    .update({ ...updates, updated_at: new Date() })
+    .eq('id', id)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error(`Error updating teacher with ID ${id}:`, error);
+    throw error;
+  }
+  
+  return data;
+};
+
+export const deleteTeacher = async (id: string) => {
+  const { error } = await supabase
+    .from('teachers')
+    .delete()
+    .eq('id', id);
+  
+  if (error) {
+    console.error(`Error deleting teacher with ID ${id}:`, error);
+    throw error;
+  }
+  
+  return true;
+};
 
 // Students
 export const getStudents = async () => {
@@ -25,7 +116,7 @@ export const getStudents = async () => {
     throw error;
   }
   
-  return data;
+  return data || [];
 };
 
 export const getStudentById = async (id: string) => {
@@ -225,7 +316,7 @@ export const renewStudentSubscription = async (studentId: string, paymentAmount:
     }
     
     // Update the student record
-    const updates = {
+    const updates: any = {
       last_payment_date: now,
       active: true
     };
@@ -296,12 +387,12 @@ export const getTeacherEarningsPerStudent = async (teacherId: string) => {
   }
   
   // Calculate earnings for each student with subscription status
-  const earningsData = students.map(student => {
+  const earningsData = students?.map(student => {
     // Calculate subscription status
     const status = calculateSubscriptionStatus(student);
     
     // Calculate teacher's earnings from this student
-    const earningsPerStudent = Math.round((student.subscription_fee * teacher.percentage) / 100);
+    const earningsPerStudent = Math.round((student.subscription_fee * (teacher?.percentage || 0)) / 100);
     
     return {
       student_id: student.id,
@@ -312,7 +403,7 @@ export const getTeacherEarningsPerStudent = async (teacherId: string) => {
       teacher_earnings: earningsPerStudent,
       is_active: status !== 'expired'
     };
-  });
+  }) || [];
   
   // Calculate total current earnings only from active students
   const totalCurrentEarnings = earningsData.reduce((sum, student) => {
@@ -356,7 +447,7 @@ export const getTransactions = async () => {
     throw error;
   }
   
-  return data;
+  return data || [];
 };
 
 export const getStudentTransactions = async (studentId: string) => {
@@ -377,7 +468,7 @@ export const getStudentTransactions = async (studentId: string) => {
     throw error;
   }
   
-  return data;
+  return data || [];
 };
 
 export const getTeacherTransactions = async (teacherId: string) => {
@@ -398,7 +489,7 @@ export const getTeacherTransactions = async (teacherId: string) => {
     throw error;
   }
   
-  return data;
+  return data || [];
 };
 
 export const getTransactionById = async (id: string) => {
@@ -476,7 +567,7 @@ const updateStudentAfterPayment = async (studentId: string, amount: number) => {
       throw studentError;
     }
     
-    const updates = {
+    const updates: any = {
       last_payment_date: new Date(),
       active: true
     };
@@ -638,7 +729,7 @@ export const getDashboardStats = async () => {
     activeStudentsCount: activeStudentsCount || 0,
     currentMonthIncome: currentMonthIncome || 0,
     currentMonthExpenses: currentMonthExpenses || 0,
-    teacherEarnings: teacherEarnings,
+    teacherEarnings: teacherEarnings || [],
     subscriptionStats: subscriptionStats,
     expiringSubscriptions: expiringSubscriptions || [],
     recentTransactions: recentTransactions || []
@@ -678,7 +769,7 @@ export const getMonthlyFinancialSummary = async (year = new Date().getFullYear()
   const incomeByCategory: Record<string, number> = {};
   const expensesByCategory: Record<string, number> = {};
   
-  transactions.forEach(transaction => {
+  transactions?.forEach(transaction => {
     if (transaction.type === 'income') {
       incomeByCategory[transaction.category] = (incomeByCategory[transaction.category] || 0) + transaction.amount;
     } else {
@@ -691,7 +782,7 @@ export const getMonthlyFinancialSummary = async (year = new Date().getFullYear()
   const totalExpenses = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
   
   return {
-    transactions,
+    transactions: transactions || [],
     summary: {
       totalIncome,
       totalExpenses,
