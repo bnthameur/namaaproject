@@ -259,7 +259,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSuccess }) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>الطالب</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "select-student"}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر الطالب" />
@@ -287,7 +287,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSuccess }) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>المعلمة</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "select-teacher"}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر المعلمة" />

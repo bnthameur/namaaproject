@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
-// Define the schema for the student form
 const studentSchema = z.object({
   name: z.string().min(2, { message: 'يجب إدخال اسم الطالب' }),
   phone: z.string().min(10, { message: 'رقم الهاتف يجب أن يكون 10 أرقام على الأقل' }),
@@ -52,13 +50,11 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch teachers for select dropdown
   const { data: teachers = [], isLoading: isLoadingTeachers } = useQuery({
     queryKey: ['teachers'],
     queryFn: getTeachers
   });
 
-  // Set up form with default values
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(studentSchema),
     defaultValues: {
@@ -79,7 +75,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
 
   const subscriptionType = form.watch('subscription_type');
 
-  // Handle form submission
   const studentMutation = useMutation({
     mutationFn: (data: StudentFormValues) => {
       if (isEditing) {
@@ -113,7 +108,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
     studentMutation.mutate(data);
   };
 
-  // Category translation for display
   const categoryOptions = [
     { value: 'autism', label: 'التوحد' },
     { value: 'learning_difficulties', label: 'صعوبات التعلم' },
@@ -122,7 +116,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
     { value: 'preparatory', label: 'الفصل التحضيري' },
   ];
 
-  // Subscription type options
   const subscriptionTypeOptions = [
     { value: 'monthly', label: 'شهري' },
     { value: 'weekly', label: 'أسبوعي' },
@@ -372,7 +365,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">بدون معلمة</SelectItem>
+                      <SelectItem value="no-teacher">بدون معلمة</SelectItem>
                       {teachers.map((teacher) => (
                         <SelectItem key={teacher.id} value={teacher.id}>
                           {teacher.name}
