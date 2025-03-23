@@ -50,9 +50,30 @@ export const getStudentById = async (id: string) => {
 };
 
 export const createStudent = async (student: any) => {
+  // Set default subscription dates if not provided
+  const studentData = { ...student };
+  
+  // For new monthly or weekly subscriptions, set default start/end dates if not provided
+  if ((studentData.subscription_type === 'monthly' || studentData.subscription_type === 'weekly') && 
+      !studentData.subscription_start_date) {
+    const startDate = new Date();
+    studentData.subscription_start_date = startDate;
+    
+    // Set default end date based on subscription type
+    if (!studentData.subscription_end_date) {
+      const endDate = new Date(startDate);
+      if (studentData.subscription_type === 'monthly') {
+        endDate.setMonth(endDate.getMonth() + 1);
+      } else if (studentData.subscription_type === 'weekly') {
+        endDate.setDate(endDate.getDate() + 7);
+      }
+      studentData.subscription_end_date = endDate;
+    }
+  }
+  
   const { data, error } = await supabase
     .from('students')
-    .insert(student)
+    .insert(studentData)
     .select()
     .single();
   
@@ -98,105 +119,149 @@ export const deleteStudent = async (id: string) => {
   return true;
 };
 
-// Teachers
-export const getTeachers = async () => {
-  const { data, error } = await supabase
-    .from('teachers')
-    .select('*')
-    .order('name');
-  
-  if (error) {
-    console.error('Error fetching teachers:', error);
-    throw error;
-  }
-  
-  return data;
-};
-
-export const getTeacherById = async (id: string) => {
-  const { data, error } = await supabase
-    .from('teachers')
-    .select('*')
-    .eq('id', id)
-    .single();
-  
-  if (error) {
-    console.error(`Error fetching teacher with ID ${id}:`, error);
-    throw error;
-  }
-  
-  return data;
-};
-
-export const getTeacherStudents = async (teacherId: string) => {
-  const { data, error } = await supabase
-    .from('students')
-    .select('*')
-    .eq('teacher_id', teacherId)
-    .order('name');
-  
-  if (error) {
-    console.error(`Error fetching students for teacher ${teacherId}:`, error);
-    throw error;
-  }
-  
-  return data;
-};
-
-export const createTeacher = async (teacher: any) => {
-  const { data, error } = await supabase
-    .from('teachers')
-    .insert(teacher)
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error creating teacher:', error);
-    throw error;
-  }
-  
-  return data;
-};
-
-export const updateTeacher = async (id: string, updates: any) => {
+// Get expiring student subscriptions
+export const getExpiringSubscriptions = async (daysThreshold = 7) => {
   try {
     const { data, error } = await supabase
-      .from('teachers')
-      .update({ ...updates, updated_at: new Date() })
-      .eq('id', id)
-      .select();
+      .rpc('get_expiring_subscriptions', { days_threshold: daysThreshold });
     
     if (error) {
-      console.error(`Error updating teacher with ID ${id}:`, error);
+      console.error('Error fetching expiring subscriptions:', error);
       throw error;
     }
     
-    return data?.[0] || null;
+    return data || [];
   } catch (error) {
-    console.error(`Error updating teacher with ID ${id}:`, error);
+    console.error('Error fetching expiring subscriptions:', error);
     throw error;
   }
 };
 
-export const deleteTeacher = async (id: string) => {
-  const { error } = await supabase
-    .from('teachers')
-    .delete()
-    .eq('id', id);
+// Calculate student subscription status
+export const calculateSubscriptionStatus = (student: any) => {
+  if (!student) return 'unknown';
   
-  if (error) {
-    console.error(`Error deleting teacher with ID ${id}:`, error);
-    throw error;
+  if (student.subscription_type === 'per_session') {
+    if (student.sessions_remaining <= 0) {
+      return 'expired';
+    } else if (student.sessions_remaining <= 2) {
+      return 'warning';
+    } else {
+      return 'active';
+    }
   }
   
-  return true;
+  if (!student.subscription_end_date) return 'unknown';
+  
+  const endDate = new Date(student.subscription_end_date);
+  const now = new Date();
+  const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (daysRemaining < 0) {
+    return 'expired';
+  } else if (daysRemaining <= 5) {
+    return 'warning';
+  } else {
+    return 'active';
+  }
+};
+
+// Renew student subscription
+export const renewStudentSubscription = async (studentId: string, paymentAmount: number) => {
+  try {
+    // Get the student
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', studentId)
+      .single();
+    
+    if (studentError) {
+      console.error(`Error fetching student with ID ${studentId}:`, studentError);
+      throw studentError;
+    }
+    
+    // Calculate new subscription dates
+    const now = new Date();
+    let newStartDate = now;
+    let newEndDate = new Date(now);
+    
+    // Use current end date as start date if it's in the future
+    if (student.subscription_end_date && new Date(student.subscription_end_date) > now) {
+      newStartDate = new Date(student.subscription_end_date);
+      newEndDate = new Date(student.subscription_end_date);
+    }
+    
+    // Calculate new end date based on subscription type
+    if (student.subscription_type === 'monthly') {
+      newEndDate.setMonth(newEndDate.getMonth() + 1);
+    } else if (student.subscription_type === 'weekly') {
+      newEndDate.setDate(newEndDate.getDate() + 7);
+    } else if (student.subscription_type === 'course') {
+      // For courses, assume it's a fixed duration set by the admin
+      // You might want to add a 'course_duration_days' field to the student record
+      const courseDuration = 30; // Default to 30 days
+      newEndDate.setDate(newEndDate.getDate() + courseDuration);
+    }
+    
+    // Create a transaction record
+    const transaction = {
+      type: 'income',
+      category: 'subscription',
+      amount: paymentAmount,
+      description: `تجديد اشتراك - ${student.name}`,
+      date: now,
+      student_id: studentId,
+      teacher_id: student.teacher_id
+    };
+    
+    const { error: transactionError } = await supabase
+      .from('transactions')
+      .insert(transaction);
+    
+    if (transactionError) {
+      console.error('Error creating renewal transaction:', transactionError);
+      throw transactionError;
+    }
+    
+    // Update the student record
+    const updates = {
+      last_payment_date: now,
+      active: true
+    };
+    
+    // Only update dates for time-based subscriptions
+    if (student.subscription_type !== 'per_session') {
+      updates.subscription_start_date = newStartDate;
+      updates.subscription_end_date = newEndDate;
+    } else {
+      // For per-session, add to the sessions count
+      const sessionsAdded = Math.floor(paymentAmount / student.subscription_fee);
+      updates.sessions_remaining = (student.sessions_remaining || 0) + sessionsAdded;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('students')
+      .update(updates)
+      .eq('id', studentId);
+    
+    if (updateError) {
+      console.error(`Error updating student with ID ${studentId}:`, updateError);
+      throw updateError;
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error renewing subscription:', error);
+    throw error;
+  }
 };
 
 // Get teacher earnings per student (for real-time tracking)
 export const getTeacherEarningsPerStudent = async (teacherId: string) => {
   const { data: students, error } = await supabase
     .from('students')
-    .select('id, name, subscription_fee')
+    .select('id, name, subscription_fee, subscription_type, subscription_end_date, sessions_remaining')
     .eq('teacher_id', teacherId)
     .eq('active', true);
   
@@ -216,15 +281,57 @@ export const getTeacherEarningsPerStudent = async (teacherId: string) => {
     throw teacherError;
   }
   
-  // Calculate earnings for each student
-  const earningsData = students.map(student => ({
-    student_id: student.id,
-    student_name: student.name,
-    subscription_fee: student.subscription_fee,
-    teacher_earnings: Math.round((student.subscription_fee * teacher.percentage) / 100)
-  }));
+  // Get last payment to this teacher
+  const { data: lastPayment, error: paymentError } = await supabase
+    .from('transactions')
+    .select('amount, date')
+    .eq('teacher_id', teacherId)
+    .eq('type', 'expense')
+    .eq('category', 'teacher_payout')
+    .order('date', { ascending: false })
+    .limit(1);
   
-  return earningsData;
+  if (paymentError) {
+    console.error(`Error fetching last payment for teacher ${teacherId}:`, paymentError);
+  }
+  
+  // Calculate earnings for each student with subscription status
+  const earningsData = students.map(student => {
+    // Calculate subscription status
+    const status = calculateSubscriptionStatus(student);
+    
+    // Calculate teacher's earnings from this student
+    const earningsPerStudent = Math.round((student.subscription_fee * teacher.percentage) / 100);
+    
+    return {
+      student_id: student.id,
+      student_name: student.name,
+      subscription_fee: student.subscription_fee,
+      subscription_type: student.subscription_type,
+      subscription_status: status,
+      teacher_earnings: earningsPerStudent,
+      is_active: status !== 'expired'
+    };
+  });
+  
+  // Calculate total current earnings only from active students
+  const totalCurrentEarnings = earningsData.reduce((sum, student) => {
+    return sum + (student.is_active ? student.teacher_earnings : 0);
+  }, 0);
+  
+  // Calculate last payment details
+  const lastPaymentDetails = lastPayment && lastPayment.length > 0 
+    ? {
+        amount: lastPayment[0].amount,
+        date: lastPayment[0].date
+      }
+    : null;
+  
+  return {
+    students: earningsData,
+    totalEarnings: totalCurrentEarnings,
+    lastPayment: lastPaymentDetails
+  };
 };
 
 // Transactions
@@ -337,6 +444,16 @@ export const createTransaction = async (transaction: any) => {
       throw error;
     }
     
+    // If this is a student payment, update their last payment date and subscription
+    if (transaction.type === 'income' && transaction.student_id) {
+      await updateStudentAfterPayment(transaction.student_id, transaction.amount);
+    }
+    
+    // If this is a teacher payout, record it
+    if (transaction.type === 'expense' && transaction.category === 'teacher_payout' && transaction.teacher_id) {
+      // No additional actions needed, the transaction record is sufficient
+    }
+    
     return data?.[0] || null;
   } catch (error) {
     console.error('Error creating transaction:', error);
@@ -344,38 +461,76 @@ export const createTransaction = async (transaction: any) => {
   }
 };
 
-export const updateTransaction = async (id: string, updates: any) => {
+// Helper function to update student after payment
+const updateStudentAfterPayment = async (studentId: string, amount: number) => {
   try {
-    const { data, error } = await supabase
-      .from('transactions')
-      .update(updates)
-      .eq('id', id)
-      .select();
+    // Get the student
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', studentId)
+      .single();
     
-    if (error) {
-      console.error(`Error updating transaction with ID ${id}:`, error);
-      throw error;
+    if (studentError) {
+      console.error(`Error fetching student with ID ${studentId}:`, studentError);
+      throw studentError;
     }
     
-    return data?.[0] || null;
+    const updates = {
+      last_payment_date: new Date(),
+      active: true
+    };
+    
+    // For per-session subscriptions, update the sessions count
+    if (student.subscription_type === 'per_session') {
+      const sessionsAdded = Math.floor(amount / student.subscription_fee);
+      updates.sessions_remaining = (student.sessions_remaining || 0) + sessionsAdded;
+    } else {
+      // For time-based subscriptions, extend the end date
+      
+      // If end date is in the past or not set, start from today
+      const baseDate = (student.subscription_end_date && new Date(student.subscription_end_date) > new Date())
+        ? new Date(student.subscription_end_date)
+        : new Date();
+      
+      // Calculate new end date based on subscription type and payment amount
+      const renewalPeriods = Math.floor(amount / student.subscription_fee);
+      const newEndDate = new Date(baseDate);
+      
+      if (student.subscription_type === 'monthly') {
+        newEndDate.setMonth(newEndDate.getMonth() + renewalPeriods);
+      } else if (student.subscription_type === 'weekly') {
+        newEndDate.setDate(newEndDate.getDate() + (7 * renewalPeriods));
+      } else if (student.subscription_type === 'course') {
+        // For courses, assume it's a fixed duration set by the admin
+        const courseDuration = 30; // Default to 30 days
+        newEndDate.setDate(newEndDate.getDate() + courseDuration);
+      }
+      
+      updates.subscription_end_date = newEndDate;
+      
+      // If start date is not set or is in the future, set it to today
+      if (!student.subscription_start_date || new Date(student.subscription_start_date) > new Date()) {
+        updates.subscription_start_date = new Date();
+      }
+    }
+    
+    // Update the student record
+    const { error: updateError } = await supabase
+      .from('students')
+      .update(updates)
+      .eq('id', studentId);
+    
+    if (updateError) {
+      console.error(`Error updating student with ID ${studentId} after payment:`, updateError);
+      throw updateError;
+    }
+    
+    return true;
   } catch (error) {
-    console.error(`Error updating transaction with ID ${id}:`, error);
+    console.error('Error updating student after payment:', error);
     throw error;
   }
-};
-
-export const deleteTransaction = async (id: string) => {
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', id);
-  
-  if (error) {
-    console.error(`Error deleting transaction with ID ${id}:`, error);
-    throw error;
-  }
-  
-  return true;
 };
 
 // Enhanced Dashboard Statistics with real-time teacher payment tracking
@@ -419,54 +574,44 @@ export const getDashboardStats = async () => {
   
   if (teachers) {
     for (const teacher of teachers) {
-      // Get teacher's active students
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select('subscription_fee')
-        .eq('teacher_id', teacher.id)
-        .eq('active', true);
-      
-      if (studentsError) {
-        console.error(`Error fetching students for teacher ${teacher.id}:`, studentsError);
-        continue;
-      }
-      
-      // Calculate total potential earnings from all active students
-      const totalPotentialEarnings = students.reduce((sum, student) => {
-        return sum + (student.subscription_fee * teacher.percentage / 100);
-      }, 0);
-      
-      // Get payments made to this teacher
-      const { data: payments, error: paymentsError } = await supabase
-        .from('transactions')
-        .select('amount')
-        .eq('teacher_id', teacher.id)
-        .eq('type', 'expense')
-        .eq('category', 'teacher_payout');
-      
-      if (paymentsError) {
-        console.error(`Error fetching payments for teacher ${teacher.id}:`, paymentsError);
-        continue;
-      }
-      
-      // Calculate total payments made
-      const totalPayments = payments.reduce((sum, payment) => {
-        return sum + payment.amount;
-      }, 0);
-      
-      // Calculate what is currently owed
-      const currentlyOwed = totalPotentialEarnings - totalPayments;
+      // Get teacher's earnings data
+      const earningsData = await getTeacherEarningsPerStudent(teacher.id);
       
       teacherEarnings.push({
         id: teacher.id,
         name: teacher.name,
-        potentialEarnings: totalPotentialEarnings,
-        paidAmount: totalPayments,
-        owedAmount: currentlyOwed,
-        studentCount: students.length
+        potentialEarnings: earningsData.totalEarnings,
+        studentCount: earningsData.students.length,
+        lastPayment: earningsData.lastPayment
       });
     }
   }
+
+  // Get subscription status statistics
+  const { data: students, error: studentsError } = await supabase
+    .from('students')
+    .select('id, subscription_type, subscription_end_date, sessions_remaining')
+    .eq('active', true);
+  
+  if (studentsError) {
+    console.error('Error fetching students for subscription status:', studentsError);
+  }
+  
+  const subscriptionStats = {
+    active: 0,
+    warning: 0,
+    expired: 0
+  };
+  
+  if (students) {
+    students.forEach(student => {
+      const status = calculateSubscriptionStatus(student);
+      subscriptionStats[status] = (subscriptionStats[status] || 0) + 1;
+    });
+  }
+
+  // Get expiring subscriptions
+  const expiringSubscriptions = await getExpiringSubscriptions(7);
 
   // Get recent transactions for the dashboard
   const { data: recentTransactions, error: recentTransactionsError } = await supabase
@@ -494,6 +639,8 @@ export const getDashboardStats = async () => {
     currentMonthIncome: currentMonthIncome || 0,
     currentMonthExpenses: currentMonthExpenses || 0,
     teacherEarnings: teacherEarnings,
+    subscriptionStats: subscriptionStats,
+    expiringSubscriptions: expiringSubscriptions || [],
     recentTransactions: recentTransactions || []
   };
 };

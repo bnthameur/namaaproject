@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import StudentSubscription from './StudentSubscription';
 
 const paymentSchema = z.object({
   type: z.enum(['income', 'expense']),
@@ -88,7 +90,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
         description: data.description,
         date: new Date(),
         student_id: studentId,
-        teacher_id: student?.teachers?.id
+        teacher_id: student?.teacher_id
       };
       return createTransaction(paymentData);
     },
@@ -97,6 +99,8 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['teacher-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['student', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['expiring-subscriptions'] });
       toast({
         title: 'تمت الإضافة',
         description: 'تمت إضافة المدفوعات بنجاح',
@@ -128,7 +132,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
   if (isLoadingStudent) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="md:max-w-3xl">
+        <DialogContent className="md:max-w-3xl scrollable-dialog-content">
           <div className="flex justify-center items-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
@@ -139,7 +143,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="md:max-w-3xl">
+      <DialogContent className="md:max-w-3xl scrollable-dialog-content">
         <DialogHeader>
           <DialogTitle>معلومات الطالب</DialogTitle>
         </DialogHeader>
@@ -181,11 +185,6 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
               <span className="text-gray-700">الفئة: {categoryTranslation[student?.category] || student?.category}</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <PiggyBank className="h-4 w-4 text-gray-500" />
-              <span className="text-gray-700">قيمة الاشتراك: {student?.subscription_fee?.toLocaleString() || 0} د.ج</span>
-            </div>
-
             {student?.notes && (
               <div className="flex items-start gap-2 mt-2">
                 <Info className="h-4 w-4 text-gray-500 mt-1" />
@@ -195,12 +194,12 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
           </div>
         </div>
 
-        <Tabs defaultValue="payments">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info">
+        <Tabs defaultValue="subscription">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="subscription">
               <div className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                <span>معلومات المعلمة</span>
+                <Calendar className="h-4 w-4" />
+                <span>الاشتراك</span>
               </div>
             </TabsTrigger>
             <TabsTrigger value="payments">
@@ -209,38 +208,18 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
                 <span>المدفوعات</span>
               </div>
             </TabsTrigger>
+            <TabsTrigger value="info">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                <span>المعلمة</span>
+              </div>
+            </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="info" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>معلومات المعلمة</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {student?.teachers ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-blue-100 text-blue-600">
-                          {student.teachers.name?.[0] || 'T'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h3 className="font-medium">{student.teachers.name}</h3>
-                        <p className="text-sm text-gray-500">المعلمة المسؤولة</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center p-4 text-gray-500">
-                    <GraduationCap className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                    <p>لم يتم تعيين معلمة لهذا الطالب بعد</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="subscription" className="mt-4">
+            <StudentSubscription student={student} />
           </TabsContent>
-
+          
           <TabsContent value="payments" className="mt-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -379,6 +358,36 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ studentId, isOpen, onCl
                   <div className="text-center p-4 text-gray-500">
                     <PiggyBank className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                     <p>لا توجد مدفوعات مسجلة لهذا الطالب</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="info" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>معلومات المعلمة</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {student?.teachers ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback className="bg-blue-100 text-blue-600">
+                          {student.teachers.name?.[0] || 'T'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="font-medium">{student.teachers.name}</h3>
+                        <p className="text-sm text-gray-500">المعلمة المسؤولة</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center p-4 text-gray-500">
+                    <GraduationCap className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                    <p>لم يتم تعيين معلمة لهذا الطالب بعد</p>
                   </div>
                 )}
               </CardContent>
