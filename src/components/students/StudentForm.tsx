@@ -32,7 +32,7 @@ const studentSchema = z.object({
   subscription_start_date: z.date().optional(),
   subscription_end_date: z.date().optional(),
   sessions_remaining: z.coerce.number().optional(),
-  teacher_id: z.string().optional(),
+  teacher_id: z.string().optional().nullable(),
   notes: z.string().optional(),
   active: z.boolean().default(true),
 });
@@ -67,7 +67,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
       subscription_start_date: student?.subscription_start_date ? new Date(student.subscription_start_date) : undefined,
       subscription_end_date: student?.subscription_end_date ? new Date(student.subscription_end_date) : undefined,
       sessions_remaining: student?.sessions_remaining || 0,
-      teacher_id: student?.teacher_id || '',
+      teacher_id: student?.teacher_id || null,
       notes: student?.notes || '',
       active: student?.active !== undefined ? student.active : true,
     },
@@ -77,10 +77,16 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
 
   const studentMutation = useMutation({
     mutationFn: (data: StudentFormValues) => {
+      const processedData = { ...data };
+      
+      if (processedData.teacher_id === "no-teacher" || processedData.teacher_id === "") {
+        processedData.teacher_id = null;
+      }
+      
       if (isEditing) {
-        return updateStudent(student.id, data);
+        return updateStudent(student.id, processedData);
       } else {
-        return createStudent(data);
+        return createStudent(processedData);
       }
     },
     onSuccess: () => {
@@ -263,6 +269,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
+                              type="button"
                               variant={"outline"}
                               className={cn(
                                 "w-full pl-3 text-right font-normal",
@@ -302,6 +309,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
+                              type="button"
                               variant={"outline"}
                               className={cn(
                                 "w-full pl-3 text-right font-normal",
@@ -357,7 +365,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
                   <FormLabel>المعلمة المسؤولة</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    defaultValue={field.value || "no-teacher"}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -366,7 +374,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ isOpen, onClose, student }) =
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="no-teacher">بدون معلمة</SelectItem>
-                      {teachers.map((teacher) => (
+                      {teachers.map((teacher: any) => (
                         <SelectItem key={teacher.id} value={teacher.id}>
                           {teacher.name}
                         </SelectItem>

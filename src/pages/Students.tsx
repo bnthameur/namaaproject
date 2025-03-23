@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Download, Filter, MoreHorizontal, Plus, Search, Pencil, Trash, Eye } from 'lucide-react';
 import BlurCard from '@/components/ui/BlurCard';
@@ -37,6 +36,8 @@ import {
 import { Loader2 } from 'lucide-react';
 import StudentForm from '@/components/students/StudentForm';
 import StudentDetails from '@/components/students/StudentDetails';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const Students: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,13 +50,11 @@ const Students: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch students data
   const { data: students = [], isLoading } = useQuery({
     queryKey: ['students'],
     queryFn: getStudents
   });
 
-  // Delete student mutation
   const deleteStudentMutation = useMutation({
     mutationFn: (id: string) => deleteStudent(id),
     onSuccess: () => {
@@ -75,7 +74,7 @@ const Students: React.FC = () => {
       console.error('Delete error:', error);
     },
   });
-  
+
   const filteredStudents = students.filter(student => 
     student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.id?.toString().includes(searchTerm)
@@ -92,7 +91,6 @@ const Students: React.FC = () => {
     }
   };
 
-  // Student category counts
   const categoryCount = {
     autism: students.filter(s => s.category === 'autism').length,
     learning: students.filter(s => s.category === 'learning_difficulties').length,
@@ -101,13 +99,85 @@ const Students: React.FC = () => {
     prep: students.filter(s => s.category === 'preparatory').length,
   };
 
-  // Translation map for categories
   const categoryTranslation: Record<string, string> = {
     'autism': 'التوحد',
     'learning_difficulties': 'صعوبات التعلم',
     'memory_issues': 'مشاكل الذاكرة',
     'medical_conditions': 'حالات طبية',
     'preparatory': 'الفصل التحضيري'
+  };
+
+  const exportStudentsList = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
+      
+      doc.setR2L(true);
+      
+      doc.setFontSize(18);
+      doc.text('قائمة الطلاب', doc.internal.pageSize.width / 2, 15, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.text(`تاريخ الإنشاء: ${new Date().toLocaleDateString('ar-SA')}`, doc.internal.pageSize.width - 15, 25, { align: 'right' });
+      
+      const tableHeaders = [['الرقم', 'الاسم', 'العمر', 'الفئة', 'الاشتراك', 'المعلمة', 'الحالة']];
+      
+      const tableData = filteredStudents.map((student) => [
+        student.id.substring(0, 8),
+        student.name,
+        `${student.age} سنوات`,
+        categoryTranslation[student.category] || student.category,
+        `${student.subscription_fee?.toLocaleString() || 0} د.ج`,
+        student.teachers?.name || 'غير معين',
+        student.active ? 'نشط' : 'غير نشط'
+      ]);
+      
+      (doc as any).autoTable({
+        head: tableHeaders,
+        body: tableData,
+        startY: 30,
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontSize: 12,
+          halign: 'center',
+          valign: 'middle'
+        },
+        bodyStyles: {
+          fontSize: 10,
+          halign: 'center',
+          valign: 'middle'
+        },
+        margin: { top: 30 },
+        didDrawPage: function (data: any) {
+          doc.setFontSize(10);
+          doc.text(`الصفحة ${doc.getNumberOfPages()}`, doc.internal.pageSize.width - 15, doc.internal.pageSize.height - 10, { align: 'right' });
+        }
+      });
+      
+      const pdfOutput = doc.output('blob');
+      const url = URL.createObjectURL(pdfOutput);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'students-list.pdf';
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "تم التصدير",
+        description: "تم تصدير قائمة الطلاب بنجاح",
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء إنشاء ملف PDF. حاول مرة أخرى.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -174,7 +244,7 @@ const Students: React.FC = () => {
                 <Filter className="h-4 w-4" />
               </Button>
               
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" onClick={exportStudentsList}>
                 <Download className="h-4 w-4" />
               </Button>
             </div>
@@ -270,7 +340,6 @@ const Students: React.FC = () => {
         </div>
       </BlurCard>
 
-      {/* Student Form Dialog */}
       {showAddStudent && (
         <StudentForm 
           student={editingStudent}
@@ -282,7 +351,6 @@ const Students: React.FC = () => {
         />
       )}
 
-      {/* Student Details */}
       {viewingStudent && (
         <StudentDetails 
           studentId={viewingStudent}
@@ -291,7 +359,6 @@ const Students: React.FC = () => {
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

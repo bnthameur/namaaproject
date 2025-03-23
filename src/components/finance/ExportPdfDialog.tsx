@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { useToast } from '@/hooks/use-toast';
 
 interface ExportPdfDialogProps {
   transactions: any[];
@@ -22,37 +23,56 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [dateRange, setDateRange] = useState<string>('custom');
   const [isOpen, setIsOpen] = useState(false);
+  const { toast } = useToast();
 
   const handleExport = () => {
-    // Filter transactions based on selected date range
-    let filteredTransactions = [...transactions];
-    
-    if (dateRange === 'custom') {
-      if (startDate) {
+    try {
+      // Filter transactions based on selected date range
+      let filteredTransactions = [...transactions];
+      
+      if (dateRange === 'custom') {
+        if (startDate) {
+          filteredTransactions = filteredTransactions.filter(t => 
+            new Date(t.date) >= startDate
+          );
+        }
+        if (endDate) {
+          filteredTransactions = filteredTransactions.filter(t => 
+            new Date(t.date) <= endDate
+          );
+        }
+      } else if (dateRange === 'today') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         filteredTransactions = filteredTransactions.filter(t => 
-          new Date(t.date) >= startDate
+          new Date(t.date) >= today
         );
       }
-      if (endDate) {
-        filteredTransactions = filteredTransactions.filter(t => 
-          new Date(t.date) <= endDate
-        );
-      }
-    } else if (dateRange === 'today') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      filteredTransactions = filteredTransactions.filter(t => 
-        new Date(t.date) >= today
+      
+      // Sort transactions by date
+      filteredTransactions.sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
       );
+      
+      if (filteredTransactions.length === 0) {
+        toast({
+          title: "لا توجد معاملات",
+          description: "لا توجد معاملات في النطاق الزمني المحدد",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      generatePDF(filteredTransactions);
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Error preparing transactions for export:', error);
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء تصدير المعاملات. حاول مرة أخرى.",
+        variant: "destructive",
+      });
     }
-    
-    // Sort transactions by date
-    filteredTransactions.sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    
-    generatePDF(filteredTransactions);
-    setIsOpen(false);
   };
 
   const generatePDF = (data: any[]) => {
@@ -64,12 +84,8 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
         format: 'a4',
       });
       
-      // Add right-to-left support
+      // RTL support (without loading external fonts that might cause issues)
       doc.setR2L(true);
-      
-      // Add Arabic font
-      doc.addFont('/fonts/NotoSansArabic-Regular.ttf', 'NotoSansArabic', 'normal');
-      doc.setFont('NotoSansArabic');
       
       // Add title
       doc.setFontSize(20);
@@ -109,14 +125,14 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
         } else if (item.teachers?.name) {
           assignee = item.teachers.name;
         } else {
-          assignee = item.description;
+          assignee = item.description || '';
         }
         
         // Return formatted row data
         return [
           item.date ? format(new Date(item.date), 'yyyy/MM/dd') : '',
           assignee,
-          item.category,
+          item.category || '',
           entry,
           outry,
           '' // We'll fill the last row only
@@ -128,7 +144,7 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
         tableData[tableData.length - 1][5] = balance.toLocaleString();
       }
       
-      // Add table to the document
+      // Add table to the document using jspdf-autotable
       (doc as any).autoTable({
         head: tableHeaders,
         body: tableData,
@@ -161,15 +177,30 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
           
           // Add footer with balance
           doc.setFontSize(12);
-          doc.setFont('NotoSansArabic', 'normal');
           doc.text(`الرصيد النهائي: ${balance.toLocaleString()} د.ج`, doc.internal.pageSize.width - 15, doc.internal.pageSize.height - 20, { align: 'right' });
         }
       });
       
-      // Save the PDF
-      doc.save('financial-transactions.pdf');
+      // Save the PDF - using direct download instead of doc.save() which might be blocked
+      const pdfOutput = doc.output('blob');
+      const url = URL.createObjectURL(pdfOutput);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `financial-transactions-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "تم التصدير",
+        description: "تم تصدير المعاملات المالية بنجاح",
+      });
     } catch (error) {
       console.error('Error generating PDF:', error);
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء إنشاء ملف PDF. حاول مرة أخرى.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -212,6 +243,7 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
+                      type="button"
                       variant="outline"
                       className={cn(
                         "w-full pl-3 text-right font-normal",
@@ -242,6 +274,7 @@ const ExportPdfDialog: React.FC<ExportPdfDialogProps> = ({ transactions }) => {
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
+                      type="button"
                       variant="outline"
                       className={cn(
                         "w-full pl-3 text-right font-normal",
