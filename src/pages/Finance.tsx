@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, Filter, Plus, PiggyBank, TrendingUp, TrendingDown, CreditCard } from 'lucide-react';
+import { Calendar, Filter, Plus, PiggyBank, TrendingUp, TrendingDown, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
 import BlurCard from '@/components/ui/BlurCard';
 import TransactionForm from '@/components/finance/TransactionForm';
+import ExportPdfDialog from '@/components/finance/ExportPdfDialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -261,9 +262,8 @@ const Finance: React.FC = () => {
               </DropdownMenuContent>
             </DropdownMenu>
             
-            <Button variant="outline" size="icon">
-              <Download className="h-4 w-4" />
-            </Button>
+            {/* Replace the Download button with ExportPdfDialog */}
+            <ExportPdfDialog transactions={transactions} />
           </div>
         </div>
         

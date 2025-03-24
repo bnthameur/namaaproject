@@ -20,8 +20,13 @@ export default {
 		},
 		extend: {
 			fontFamily: {
+<<<<<<< HEAD
 				arabic: ['Noto Sans Arabic', 'sans-serif'],
 			  },
+=======
+				sans: ['Noto Kufi Arabic', 'Inter', 'sans-serif'],
+			},
+>>>>>>> acf99c6920c2b0209d33d0bc88063404488e3885
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',

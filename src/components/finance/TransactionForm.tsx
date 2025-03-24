@@ -54,13 +54,13 @@ interface TransactionFormProps {
 }
 
 const TransactionForm: React.FC<TransactionFormProps> = ({ onSuccess }) => {
-  const { data: students } = useQuery({
+  const { data: students = [] } = useQuery({
     queryKey: ['students'],
     queryFn: getStudents,
     enabled: typeof window !== 'undefined',
   });
 
-  const { data: teachers } = useQuery({
+  const { data: teachers = [] } = useQuery({
     queryKey: ['teachers'],
     queryFn: getTeachers,
     enabled: typeof window !== 'undefined',
@@ -220,7 +220,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSuccess }) => {
               <FormItem>
                 <FormLabel>الوصف</FormLabel>
                 <FormControl>
-                  <Input placeholder="وصف المعاملة" {...field} />
+                  <Input placeholder="وصف المعا��لة" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -259,7 +259,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSuccess }) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>الطالب</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "select-student"}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر الطالب" />
@@ -287,7 +287,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSuccess }) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>المعلمة</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "select-teacher"}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر المعلمة" />
