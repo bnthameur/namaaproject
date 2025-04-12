@@ -28,7 +28,7 @@ const App = () => {
     // Set document language and direction
     document.documentElement.lang = "ar";
     document.documentElement.dir = "rtl";
-    document.title = "مركز التعليم الخاص";
+    document.title = "مركز نماء للمهارات النمائية واللغوية";
   }, []);
 
   return (
